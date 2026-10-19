@@ -1,0 +1,346 @@
+# J.A.R.V.I.S. configuration.
+# Every model name, threshold and timeout lives here, not in code.
+# Relative file paths are resolved against this file's folder.
+
+assistant:
+  name: JARVIS
+  user_name: Tony
+  user_name_hi: टोनी
+  persona_file: persona.md
+  apps_file: apps.yaml
+
+llm:
+  # Per-request network timeout and SDK retries (connection errors, 429, 5xx).
+  request_timeout_s: 30
+  max_retries: 2
+  # Hard stop for the tool-call loop within one user turn.
+  max_tool_rounds: 5
+  # Conversation turns sent with each request before the oldest are dropped.
+  # Older context survives as the rolling summary and facts in long-term memory.
+  history_max_turns: 20
+  # Cost cap: output tokens one request of yours may use, summed over its tool rounds.
+  max_output_tokens_per_turn: 12000
+  # Don't start another tool round with less budget left than this.
+  min_tokens_per_round: 256
+  # Tell Claude the current local date and time with every request (a short note
+  # after the cached prefix, so caching is unaffected). Nothing else about you is sent.
+  time_note: true
+
+  # A route is a model plus the settings to call it with.
+  # thinking: "disabled" | "adaptive" | "between_tools"
+  #   - Haiku 5.5 accepts "disabled" at effort high or below (fastest first token).
+  #   - Sonnet 5.5 rejects "disabled"; "between_tools" is its thinking-off mode.
+  #   - Opus 5.5 only accepts "adaptive".
+  # fallbacks: "default" enables Anthropic's server-side refusal fallback
+  #   (Claude API only; not supported on Haiku 5.5). null disables it.
+  routes:
+    routine:
+      model: claude-haiku-5-5
+      max_tokens: 1024
+      effort: low
+      thinking: disabled
+      fallbacks: null
+    coding:
+      model: claude-sonnet-5-5
+      max_tokens: 8000
+      effort: medium
+      thinking: adaptive
+      fallbacks: default
+
+  # Keyword router: decides the route per user turn without an extra API call.
+  # The first rule with a matching keyword wins; otherwise default_route is used.
+  # Keywords match whole words, case-insensitively. ignore_phrases are removed
+  # before matching, so "open VS Code" does not count as a coding question.
+  router:
+    default_route: routine
+    rules:
+      - route: coding
+        ignore_phrases:
+          - vs code
+          - vscode
+          - visual studio code
+          - code editor
+          - वीएस कोड
+          - विजुअल स्टूडियो कोड
+        keywords:
+          - code
+          - coding
+          - function
+          - algorithm
+          - program
+          - script
+          - bug
+          - debug
+          - error
+          - exception
+          - compile
+          - python
+          - javascript
+          - typescript
+          - java
+          - c++
+          - rust
+          - sql
+          - regex
+          - complexity
+          - recursion
+          - class
+          - api
+          - कोड
+          - फ़ंक्शन
+          - प्रोग्राम
+
+search:
+  # Web search runs as a separate, small Claude call with Anthropic's
+  # server-side web search tool. The main conversation sees it as an ordinary
+  # client tool, so every route (including Haiku) can search.
+  provider: anthropic
+  model: claude-sonnet-5-5
+  tool_type: web_search_20260209
+  max_uses: 3
+  max_tokens: 1024
+  effort: low
+  max_sources: 3
+  timeout_s: 45
+  # Optional coarse location to improve local results, e.g.
+  # {type: approximate, country: IN, timezone: Asia/Kolkata}
+  # Off by default: nothing about your location is sent unless you set it.
+  user_location: null
+
+tools:
+  # Timeout for client-side tools (opening apps / URLs, showing code).
+  timeout_s: 20
+  # When an app is not in apps.yaml, look for a matching Start Menu shortcut
+  # and ask for confirmation before launching it.
+  search_start_menu_for_unknown_apps: true
+  # How long to wait for a yes/no answer before treating it as "no".
+  confirm_timeout_s: 30
+
+# Lines spoken (or printed) the moment a tool starts, so Jarvis never goes
+# silent during a slow action. {target} is filled in by the tool.
+narration:
+  open_app:
+    en: "Opening {target}."
+    hi: "{target} खोल रहा हूँ।"
+  open_url:
+    en: "Opening that page."
+    hi: "वह पेज खोल रहा हूँ।"
+  web_search:
+    en: "Searching for that now."
+    hi: "अभी खोज रहा हूँ।"
+  show_code:
+    en: "Putting the code on your screen."
+    hi: "कोड आपकी स्क्रीन पर दिखा रहा हूँ।"
+
+# Fixed lines for failures, so the user always hears something sensible.
+messages:
+  api_unreachable:
+    en: "I could not reach my brain right now, {user_name}."
+    hi: "{user_name_hi}, अभी मैं अपने दिमाग़ तक नहीं पहुँच पा रहा।"
+  refusal:
+    en: "I'm afraid I can't help with that one, {user_name}."
+    hi: "माफ़ कीजिए {user_name_hi}, इसमें मैं मदद नहीं कर सकता।"
+  internal_error:
+    en: "Something went wrong on my side, {user_name}. Please try again."
+    hi: "{user_name_hi}, मेरी तरफ़ कुछ गड़बड़ हो गई। कृपया फिर से कोशिश करें।"
+  didnt_catch:
+    en: "Sorry {user_name}, I didn't catch that."
+    hi: "माफ़ कीजिए {user_name_hi}, मैं समझ नहीं पाया।"
+  speech_unavailable:
+    en: "My ears aren't working right now, {user_name}. Check the microphone."
+    hi: "{user_name_hi}, मैं अभी सुन नहीं पा रहा। माइक्रोफ़ोन जाँच लीजिए।"
+  # {target} = what you asked for, {match} = the Start Menu shortcut found.
+  confirm_unknown_app:
+    en: "{target} isn't on my list, but I found {match} in your Start Menu. Shall I open it?"
+    hi: "{target} मेरी सूची में नहीं है, पर स्टार्ट मेन्यू में {match} मिला। खोल दूँ?"
+  turn_budget_exhausted:
+    en: "That one needs more work than I'm allowed to spend on a single request, {user_name}."
+    hi: "{user_name_hi}, इस एक अनुरोध के लिए तय सीमा से ज़्यादा काम लग रहा है।"
+  # {count} = how many notes matched, {target} = what you asked me to forget.
+  confirm_forget_matches:
+    en: "I have {count} notes about {target}. Shall I forget all of them?"
+    hi: "{target} के बारे में मेरे पास {count} बातें याद हैं। क्या सब भूल जाऊँ?"
+  confirm_forget_all:
+    en: "This erases everything I remember about you. Are you sure?"
+    hi: "इससे आपके बारे में मेरी याद की हुई हर बात मिट जाएगी। क्या आप पक्का चाहते हैं?"
+  # {spent} and {cap} are dollar amounts.
+  budget_warning:
+    en: "Heads up, {user_name}: this session has used {spent} of its {cap} dollar budget."
+    hi: "{user_name_hi}, ध्यान दीजिए: इस सत्र में {cap} डॉलर में से {spent} डॉलर ख़र्च हो चुके हैं।"
+  budget_exhausted:
+    en: "I've reached this session's {cap} dollar spending limit, {user_name}. Restart me to reset it."
+    hi: "{user_name_hi}, इस सत्र की {cap} डॉलर की ख़र्च सीमा पूरी हो गई है। रीसेट के लिए मुझे दोबारा शुरू करें।"
+  voice_unavailable:
+    en: "My voice systems didn't start, {user_name}. You can still type to me."
+    hi: "{user_name_hi}, मेरी आवाज़ शुरू नहीं हो पाई। आप टाइप करके बात कर सकते हैं।"
+
+logging:
+  level: INFO
+  max_bytes: 1000000
+  backup_count: 5
+  # When false (default), logs record timings, token counts and tool names,
+  # but never what you said or what Jarvis answered.
+  log_transcripts: false
+
+# ---------------------------------------------------------------------------
+# Long-term memory (Phase 4). A local SQLite file in paths.data_dir.
+# ---------------------------------------------------------------------------
+memory:
+  enabled: true
+  db_file: memory.db
+  # "Consolidation": a small background Claude call that updates the rolling
+  # conversation summary and extracts lasting facts about you as structured JSON.
+  # It sees only the text of recent turns, with anything sensitive removed first.
+  model: claude-haiku-5-5
+  effort: low
+  thinking: disabled
+  max_tokens: 2000
+  timeout_s: 30
+  consolidate_every_turns: 6       # run after this many of your requests ...
+  max_buffered_messages: 60        # ... keeping at most this many lines if it keeps failing
+  shutdown_flush_timeout_s: 10     # on exit, wait this long for a final consolidation
+  max_summary_chars: 1500
+  max_facts: 300                   # new facts are refused once memory holds this many
+  max_fact_chars: 300
+  # Recall: facts whose words/keywords overlap your request are added to the
+  # conversation as a short note. Matching is local; no extra API call.
+  recall_max_facts: 5
+  recall_min_score: 1
+  search_max_results: 5            # for "what do you remember about ..." and "forget ..."
+
+# List prices for the local cost log (USD per million tokens), checked against
+# https://platform.claude.com/docs/en/about-claude/pricing on 2026-10-18.
+# Haiku 5.5 prices assume prompts under 100,000 tokens (Jarvis's are far smaller).
+pricing:
+  cache_write_multiplier: 1.25     # 5-minute cache writes
+  web_search_per_1000: 10.0
+  models:
+    claude-haiku-5-5: {input: 0.10, output: 0.50, cache_read: 0.01}
+    claude-sonnet-5-5: {input: 2.00, output: 10.00, cache_read: 0.10}
+
+# Hard spending cap per run of Jarvis, counting every Claude call (conversation,
+# search, memory). Before each call Jarvis estimates its worst case and refuses
+# if that could cross the cap, so the cap is never exceeded.
+budget:
+  session_cap_usd: 5.0
+  warn_at_fraction: 0.8            # spoken warning once spending passes 80%
+  chars_per_token_estimate: 2      # pessimistic, so the estimate errs high
+  search_result_tokens_estimate: 30000
+
+# ---------------------------------------------------------------------------
+# HUD link (Phase 5): local WebSocket for the Electron HUD.
+# ---------------------------------------------------------------------------
+server:
+  host: 127.0.0.1                  # loopback only; anything else is rejected
+  port: 0                          # 0 = a free port, chosen per launch
+  auth_timeout_s: 5                # a client must send the launch token within this time
+  max_message_bytes: 65536
+  max_clients: 2
+  allowed_origins: ["app://jarvis"]
+
+paths:
+  # null = %LOCALAPPDATA%\Jarvis on Windows, ~/.local/share/jarvis elsewhere.
+  # Never point this inside the repository.
+  data_dir: null
+  # null = <repo>/models (git-ignored). Fill it with scripts/download_models.py.
+  models_dir: null
+
+# ---------------------------------------------------------------------------
+# Voice (Phase 2). Everything below runs locally; no audio leaves the machine.
+# ---------------------------------------------------------------------------
+
+audio:
+  # Device name substring (e.g. "Headphones") or index from
+  # `python -c "import sounddevice; print(sounddevice.query_devices())"`.
+  # null = the Windows default device.
+  input_device: null
+  output_device: null
+  input_sample_rate: 16000     # what Whisper expects
+  block_ms: 32                 # mic block size; also the level-meter rate (~31 Hz)
+  level_floor_db: -60          # mic/TTS level meter: this maps to 0.0 ...
+  level_ceiling_db: -10        # ... and this to 1.0
+  # Off by default. When true, each recorded utterance is written as a WAV file
+  # to <data_dir>\debug-audio\ for troubleshooting. Never inside the repo.
+  debug_save_audio: false
+
+voice:
+  # How a conversation starts. wake_word keeps the mic open (on this machine only)
+  # to listen for "Hey Jarvis"; push_to_talk opens it only while the key is held.
+  triggers: [wake_word, push_to_talk]
+  # Hold this key to talk. It must be held ALONE for hold_threshold_ms; pressing
+  # any other key while holding it (Ctrl+C, Ctrl+V, ...) cancels.
+  push_to_talk_key: left_ctrl  # left_ctrl | right_ctrl | f9 | caps_lock
+  hold_threshold_ms: 300
+  poll_hz: 50
+  min_utterance_ms: 300        # shorter recordings are ignored
+  max_utterance_s: 30          # recording stops automatically after this
+  confirm_listen_timeout_s: 8  # time to start answering a yes/no question
+
+# "Hey Jarvis" detection (openWakeWord models, run on one CPU thread).
+wake_word:
+  melspectrogram_file: openwakeword/melspectrogram.onnx
+  embedding_file: openwakeword/embedding_model.onnx
+  model_file: openwakeword/hey_jarvis_v0.1.onnx
+  threshold: 0.5               # raise if it triggers on TV/conversation, lower if it misses you
+  # Used while Jarvis talks (its own voice leaks into the mic). 0.9 because in the
+  # synthetic eval a sentence merely containing "Jarvis" scored up to 0.85, while genuine
+  # "Hey Jarvis" clips almost all scored above 0.95 (docs/voice-benchmarks.md).
+  speaking_threshold: 0.9
+  barge_in: true               # "Hey Jarvis" during a reply stops it and listens
+  cooldown_ms: 1500            # ignore re-detections of the same utterance
+
+# End-of-speech detection (Silero VAD bundled with faster-whisper).
+vad:
+  threshold: 0.5               # speech probability that counts as speech
+  neg_threshold: 0.35          # below this counts as silence
+  min_speech_ms: 250           # shorter blips (a cough, a click) are ignored
+  end_silence_ms: 800          # this much silence after speech ends the utterance
+  start_timeout_s: 6           # after waking, give up if you don't start speaking
+
+session:
+  greeting: "Hello {user_name}, whatsup?"
+  greeting_after_idle_min: 10  # greet only if the last conversation ended this long ago (0 = always)
+  follow_up_s: 6               # after a reply, keep listening this long without the wake word
+  follow_up_guard_ms: 300      # skip the speaker's tail right after Jarvis stops talking
+  preroll_ms: 300              # audio kept from just before push-to-talk confirms
+
+stt:
+  # Model folder is models/whisper-<model>. Chosen from scripts/benchmark_stt.py.
+  model: small                 # small | medium | large-v3-turbo
+  compute_type: int8
+  cpu_threads: 8                # measured: ~1.3 s vs ~1.5 s with 4 (see docs/voice-benchmarks.md)
+  beam_size: 5
+  # Whisper often labels Hindi speech as Urdu; detection is restricted to these.
+  allowed_languages: [en, hi]
+  vad_filter: true             # trims silence with faster-whisper's bundled Silero VAD
+
+tts:
+  engine: kokoro               # kokoro | piper
+  speed: 1.0
+  kokoro:
+    model_file: kokoro/kokoro-v1.0.int8.onnx
+    voices_file: kokoro/voices-v1.0.bin
+    # Pick by ear with scripts/audition_voices.py.
+    voices: {en: bm_george, hi: hm_omega}
+    espeak_languages: {en: en-gb, hi: hi}
+    # Measured: 6 threads ~410 ms for a short sentence vs ~460 ms with 4 (int8).
+    # STT and TTS rarely run at the same time, so both can use several cores.
+    threads: 6
+  piper:
+    voices:
+      en: piper/en_GB-alan-medium.onnx
+      hi: piper/hi_IN-rohan-medium.onnx
+  # Optional "AI" colouring: a little extra low end, a faint room, a subtle double.
+  postfx:
+    enabled: true
+    low_shelf_hz: 220
+    low_shelf_gain_db: 3.0
+    reverb_wet: 0.07
+    reverb_decay_s: 0.22
+    doubling_delay_ms: 14
+    doubling_gain_db: -14
+  # How streamed text is cut into pieces for speech. The first piece may end at a
+  # comma once it is this long, so the first audio starts sooner.
+  segmenter:
+    first_chunk_min_chars: 25
+    max_chunk_chars: 220

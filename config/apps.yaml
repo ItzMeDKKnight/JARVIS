@@ -1,0 +1,103 @@
+# App allowlist. Jarvis only launches what is listed here, or, after you
+# confirm, a Start Menu shortcut whose name matches what you asked for.
+# It never runs shell commands.
+#
+# launch.kind:
+#   shell  - handed to Windows ShellExecute: an exe registered under "App Paths"
+#            (chrome.exe, msedge.exe) or a URI like ms-settings:
+#   path   - an absolute path to an executable; %ENV_VARS% are expanded
+#   appx   - a Store/UWP app user model ID (find one with PowerShell: Get-StartApps)
+#
+# Aliases are matched case-insensitively after Unicode normalisation; Hindi
+# nukta differences (फ़ / फ) are ignored, so either spelling works.
+
+apps:
+  - id: chrome
+    display_name: Google Chrome
+    aliases: [chrome, google chrome, chrome browser, crome, क्रोम, गूगल क्रोम, क्रोम ब्राउज़र]
+    launch: {kind: shell, target: chrome.exe}
+
+  - id: edge
+    display_name: Microsoft Edge
+    aliases: [edge, microsoft edge, edge browser, एज, माइक्रोसॉफ्ट एज, एज ब्राउज़र]
+    launch: {kind: shell, target: msedge.exe}
+
+  - id: brave
+    display_name: Brave
+    aliases: [brave, brave browser, ब्रेव, ब्रेव ब्राउज़र]
+    launch: {kind: shell, target: brave.exe}
+
+  - id: firefox
+    display_name: Firefox
+    aliases: [firefox, mozilla firefox, mozilla, फ़ायरफ़ॉक्स, फ़ायरफ़ाक्स, मोज़िला]
+    launch: {kind: shell, target: firefox.exe}
+
+  - id: vscode
+    display_name: VS Code
+    aliases: [vs code, vscode, visual studio code, code editor, v s code, वीएस कोड, वी एस कोड, विजुअल स्टूडियो कोड, कोड एडिटर]
+    launch: {kind: shell, target: code.exe}
+
+  - id: notepad
+    display_name: Notepad
+    aliases: [notepad, note pad, नोटपैड, नोट पैड]
+    launch: {kind: appx, target: "Microsoft.WindowsNotepad_8wekyb3d8bbwe!App"}
+
+  - id: calculator
+    display_name: Calculator
+    aliases: [calculator, calc, calculater, कैलकुलेटर, कैल्क्युलेटर, कैलक्यूलेटर, कैलकुलेटर ऐप, गणक]
+    launch: {kind: appx, target: "Microsoft.WindowsCalculator_8wekyb3d8bbwe!App"}
+
+  - id: file_explorer
+    display_name: File Explorer
+    aliases: [file explorer, explorer, files, my files, file manager, this pc, my computer, फ़ाइल एक्सप्लोरर, फ़ाइलें, फ़ाइल मैनेजर, एक्सप्लोरर, मेरी फ़ाइलें]
+    launch: {kind: shell, target: explorer.exe}
+
+  - id: settings
+    display_name: Settings
+    aliases: [settings, windows settings, setting, सेटिंग्स, सेटिंग, सेटिंग्ज़, विंडोज़ सेटिंग्स]
+    launch: {kind: shell, target: "ms-settings:"}
+
+  - id: terminal
+    display_name: Terminal
+    aliases: [terminal, windows terminal, command prompt, cmd, powershell, टर्मिनल, कमांड प्रॉम्प्ट]
+    launch: {kind: shell, target: wt.exe}
+
+  - id: paint
+    display_name: Paint
+    aliases: [paint, ms paint, mspaint, पेंट, एमएस पेंट]
+    launch: {kind: appx, target: "Microsoft.Paint_8wekyb3d8bbwe!App"}
+
+  - id: camera
+    display_name: Camera
+    aliases: [camera, webcam, कैमरा, कैमरे]
+    launch: {kind: appx, target: "Microsoft.WindowsCamera_8wekyb3d8bbwe!App"}
+
+  - id: whatsapp
+    display_name: WhatsApp
+    aliases: [whatsapp, whats app, watsapp, व्हाट्सएप, व्हाट्सऐप, वॉट्सऐप, वॉट्सएप]
+    launch: {kind: appx, target: "5319275A.WhatsAppDesktop_cv1g1gvanyjgm!App"}
+
+  - id: word
+    display_name: Microsoft Word
+    aliases: [word, microsoft word, ms word, वर्ड, एमएस वर्ड, माइक्रोसॉफ्ट वर्ड]
+    launch: {kind: shell, target: winword.exe}
+
+  - id: excel
+    display_name: Microsoft Excel
+    aliases: [excel, microsoft excel, ms excel, एक्सेल, एमएस एक्सेल, माइक्रोसॉफ्ट एक्सेल]
+    launch: {kind: shell, target: excel.exe}
+
+  - id: powerpoint
+    display_name: Microsoft PowerPoint
+    aliases: [powerpoint, power point, microsoft powerpoint, ppt, पावरपॉइंट, पावर पॉइंट, पीपीटी]
+    launch: {kind: shell, target: powerpnt.exe}
+
+  - id: snipping_tool
+    display_name: Snipping Tool
+    aliases: [snipping tool, screenshot tool, screenshot, स्निपिंग टूल, स्क्रीनशॉट टूल, स्क्रीनशॉट]
+    launch: {kind: shell, target: snippingtool.exe}
+
+  - id: task_manager
+    display_name: Task Manager
+    aliases: [task manager, taskmanager, टास्क मैनेजर, टास्क मेनेजर]
+    launch: {kind: shell, target: taskmgr.exe}

@@ -1,0 +1,841 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "J.A.R.V.I.S. event protocol",
+  "protocol_version": 2,
+  "backend_event": {
+    "$defs": {
+      "AssistantState": {
+        "description": "States of the assistant; see jarvis.state for the allowed transitions.",
+        "enum": [
+          "idle",
+          "listening",
+          "thinking",
+          "speaking",
+          "error",
+          "muted"
+        ],
+        "title": "AssistantState",
+        "type": "string"
+      },
+      "AudioLevel": {
+        "additionalProperties": false,
+        "properties": {
+          "v": {
+            "const": 2,
+            "default": 2,
+            "title": "V",
+            "type": "integer"
+          },
+          "type": {
+            "const": "audio_level",
+            "default": "audio_level",
+            "title": "Type",
+            "type": "string"
+          },
+          "source": {
+            "enum": [
+              "mic",
+              "tts"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "level": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Level",
+            "type": "number"
+          }
+        },
+        "required": [
+          "source",
+          "level"
+        ],
+        "title": "AudioLevel",
+        "type": "object"
+      },
+      "CodeBlock": {
+        "additionalProperties": false,
+        "properties": {
+          "v": {
+            "const": 2,
+            "default": 2,
+            "title": "V",
+            "type": "integer"
+          },
+          "type": {
+            "const": "code_block",
+            "default": "code_block",
+            "title": "Type",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "language": {
+            "title": "Language",
+            "type": "string"
+          },
+          "code": {
+            "title": "Code",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "language",
+          "code"
+        ],
+        "title": "CodeBlock",
+        "type": "object"
+      },
+      "ErrorEvent": {
+        "additionalProperties": false,
+        "properties": {
+          "v": {
+            "const": 2,
+            "default": 2,
+            "title": "V",
+            "type": "integer"
+          },
+          "type": {
+            "const": "error",
+            "default": "error",
+            "title": "Type",
+            "type": "string"
+          },
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "ErrorEvent",
+        "type": "object"
+      },
+      "MemoryFactItem": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "category": {
+            "title": "Category",
+            "type": "string"
+          },
+          "source": {
+            "enum": [
+              "explicit",
+              "extracted"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "text",
+          "category",
+          "source",
+          "created_at"
+        ],
+        "title": "MemoryFactItem",
+        "type": "object"
+      },
+      "MemorySnapshot": {
+        "additionalProperties": false,
+        "description": "Everything in long-term memory, sent when the HUD asks or after a change it made.",
+        "properties": {
+          "v": {
+            "const": 2,
+            "default": 2,
+            "title": "V",
+            "type": "integer"
+          },
+          "type": {
+            "const": "memory",
+            "default": "memory",
+            "title": "Type",
+            "type": "string"
+          },
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "facts": {
+            "items": {
+              "$ref": "#/$defs/MemoryFactItem"
+            },
+            "title": "Facts",
+            "type": "array"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary"
+          }
+        },
+        "required": [
+          "enabled",
+          "facts",
+          "summary"
+        ],
+        "title": "MemorySnapshot",
+        "type": "object"
+      },
+      "SourceItem": {
+        "additionalProperties": false,
+        "properties": {
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "url"
+        ],
+        "title": "SourceItem",
+        "type": "object"
+      },
+      "Sources": {
+        "additionalProperties": false,
+        "properties": {
+          "v": {
+            "const": 2,
+            "default": 2,
+            "title": "V",
+            "type": "integer"
+          },
+          "type": {
+            "const": "sources",
+            "default": "sources",
+            "title": "Type",
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/$defs/SourceItem"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "Sources",
+        "type": "object"
+      },
+      "StateChanged": {
+        "additionalProperties": false,
+        "properties": {
+          "v": {
+            "const": 2,
+            "default": 2,
+            "title": "V",
+            "type": "integer"
+          },
+          "type": {
+            "const": "state_changed",
+            "default": "state_changed",
+            "title": "Type",
+            "type": "string"
+          },
+          "state": {
+            "$ref": "#/$defs/AssistantState"
+          }
+        },
+        "required": [
+          "state"
+        ],
+        "title": "StateChanged",
+        "type": "object"
+      },
+      "Status": {
+        "additionalProperties": false,
+        "description": "What the session can do right now; sent on connect and whenever it changes.",
+        "properties": {
+          "v": {
+            "const": 2,
+            "default": 2,
+            "title": "V",
+            "type": "integer"
+          },
+          "type": {
+            "const": "status",
+            "default": "status",
+            "title": "Type",
+            "type": "string"
+          },
+          "muted": {
+            "title": "Muted",
+            "type": "boolean"
+          },
+          "voice": {
+            "title": "Voice",
+            "type": "boolean"
+          },
+          "hands_free": {
+            "title": "Hands Free",
+            "type": "boolean"
+          },
+          "push_to_talk_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Push To Talk Key"
+          }
+        },
+        "required": [
+          "muted",
+          "voice",
+          "hands_free",
+          "push_to_talk_key"
+        ],
+        "title": "Status",
+        "type": "object"
+      },
+      "ToolFinished": {
+        "additionalProperties": false,
+        "properties": {
+          "v": {
+            "const": 2,
+            "default": 2,
+            "title": "V",
+            "type": "integer"
+          },
+          "type": {
+            "const": "tool_finished",
+            "default": "tool_finished",
+            "title": "Type",
+            "type": "string"
+          },
+          "call_id": {
+            "title": "Call Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          },
+          "summary": {
+            "title": "Summary",
+            "type": "string"
+          }
+        },
+        "required": [
+          "call_id",
+          "name",
+          "ok",
+          "summary"
+        ],
+        "title": "ToolFinished",
+        "type": "object"
+      },
+      "ToolStarted": {
+        "additionalProperties": false,
+        "description": "Emitted before a tool runs. ``summary`` is the narration line to speak.",
+        "properties": {
+          "v": {
+            "const": 2,
+            "default": 2,
+            "title": "V",
+            "type": "integer"
+          },
+          "type": {
+            "const": "tool_started",
+            "default": "tool_started",
+            "title": "Type",
+            "type": "string"
+          },
+          "call_id": {
+            "title": "Call Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "summary": {
+            "title": "Summary",
+            "type": "string"
+          }
+        },
+        "required": [
+          "call_id",
+          "name",
+          "summary"
+        ],
+        "title": "ToolStarted",
+        "type": "object"
+      },
+      "Transcript": {
+        "additionalProperties": false,
+        "description": "One utterance. Partial updates repeat the same ``turn_id`` with the text so far.",
+        "properties": {
+          "v": {
+            "const": 2,
+            "default": 2,
+            "title": "V",
+            "type": "integer"
+          },
+          "type": {
+            "const": "transcript",
+            "default": "transcript",
+            "title": "Type",
+            "type": "string"
+          },
+          "turn_id": {
+            "title": "Turn Id",
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "user",
+              "assistant"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "language": {
+            "enum": [
+              "en",
+              "hi"
+            ],
+            "title": "Language",
+            "type": "string"
+          },
+          "final": {
+            "title": "Final",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "turn_id",
+          "role",
+          "text",
+          "language",
+          "final"
+        ],
+        "title": "Transcript",
+        "type": "object"
+      },
+      "UsageUpdate": {
+        "additionalProperties": false,
+        "description": "Model of the last Claude call and spending so far (for the status bar).",
+        "properties": {
+          "v": {
+            "const": 2,
+            "default": 2,
+            "title": "V",
+            "type": "integer"
+          },
+          "type": {
+            "const": "usage",
+            "default": "usage",
+            "title": "Type",
+            "type": "string"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "route": {
+            "title": "Route",
+            "type": "string"
+          },
+          "session_cost_usd": {
+            "minimum": 0,
+            "title": "Session Cost Usd",
+            "type": "number"
+          },
+          "cap_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cap Usd"
+          }
+        },
+        "required": [
+          "model",
+          "route",
+          "session_cost_usd",
+          "cap_usd"
+        ],
+        "title": "UsageUpdate",
+        "type": "object"
+      }
+    },
+    "discriminator": {
+      "mapping": {
+        "audio_level": "#/$defs/AudioLevel",
+        "code_block": "#/$defs/CodeBlock",
+        "error": "#/$defs/ErrorEvent",
+        "memory": "#/$defs/MemorySnapshot",
+        "sources": "#/$defs/Sources",
+        "state_changed": "#/$defs/StateChanged",
+        "status": "#/$defs/Status",
+        "tool_finished": "#/$defs/ToolFinished",
+        "tool_started": "#/$defs/ToolStarted",
+        "transcript": "#/$defs/Transcript",
+        "usage": "#/$defs/UsageUpdate"
+      },
+      "propertyName": "type"
+    },
+    "oneOf": [
+      {
+        "$ref": "#/$defs/StateChanged"
+      },
+      {
+        "$ref": "#/$defs/AudioLevel"
+      },
+      {
+        "$ref": "#/$defs/Transcript"
+      },
+      {
+        "$ref": "#/$defs/ToolStarted"
+      },
+      {
+        "$ref": "#/$defs/ToolFinished"
+      },
+      {
+        "$ref": "#/$defs/CodeBlock"
+      },
+      {
+        "$ref": "#/$defs/Sources"
+      },
+      {
+        "$ref": "#/$defs/ErrorEvent"
+      },
+      {
+        "$ref": "#/$defs/Status"
+      },
+      {
+        "$ref": "#/$defs/UsageUpdate"
+      },
+      {
+        "$ref": "#/$defs/MemorySnapshot"
+      }
+    ]
+  },
+  "client_command": {
+    "$defs": {
+      "Auth": {
+        "additionalProperties": false,
+        "description": "Must be the first message on a connection; carries the per-launch token.",
+        "properties": {
+          "v": {
+            "const": 2,
+            "default": 2,
+            "title": "V",
+            "type": "integer"
+          },
+          "type": {
+            "const": "auth",
+            "default": "auth",
+            "title": "Type",
+            "type": "string"
+          },
+          "token": {
+            "maxLength": 256,
+            "minLength": 16,
+            "title": "Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "token"
+        ],
+        "title": "Auth",
+        "type": "object"
+      },
+      "Interrupt": {
+        "additionalProperties": false,
+        "properties": {
+          "v": {
+            "const": 2,
+            "default": 2,
+            "title": "V",
+            "type": "integer"
+          },
+          "type": {
+            "const": "interrupt",
+            "default": "interrupt",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "title": "Interrupt",
+        "type": "object"
+      },
+      "MemoryDelete": {
+        "additionalProperties": false,
+        "properties": {
+          "v": {
+            "const": 2,
+            "default": 2,
+            "title": "V",
+            "type": "integer"
+          },
+          "type": {
+            "const": "memory_delete",
+            "default": "memory_delete",
+            "title": "Type",
+            "type": "string"
+          },
+          "ids": {
+            "items": {
+              "type": "integer"
+            },
+            "maxItems": 500,
+            "minItems": 1,
+            "title": "Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "ids"
+        ],
+        "title": "MemoryDelete",
+        "type": "object"
+      },
+      "MemoryForgetAll": {
+        "additionalProperties": false,
+        "description": "The HUD asks for confirmation itself before sending this.",
+        "properties": {
+          "v": {
+            "const": 2,
+            "default": 2,
+            "title": "V",
+            "type": "integer"
+          },
+          "type": {
+            "const": "memory_forget_all",
+            "default": "memory_forget_all",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "title": "MemoryForgetAll",
+        "type": "object"
+      },
+      "MemoryList": {
+        "additionalProperties": false,
+        "properties": {
+          "v": {
+            "const": 2,
+            "default": 2,
+            "title": "V",
+            "type": "integer"
+          },
+          "type": {
+            "const": "memory_list",
+            "default": "memory_list",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "title": "MemoryList",
+        "type": "object"
+      },
+      "MuteToggle": {
+        "additionalProperties": false,
+        "properties": {
+          "v": {
+            "const": 2,
+            "default": 2,
+            "title": "V",
+            "type": "integer"
+          },
+          "type": {
+            "const": "mute_toggle",
+            "default": "mute_toggle",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "title": "MuteToggle",
+        "type": "object"
+      },
+      "PttStart": {
+        "additionalProperties": false,
+        "description": "HUD push-to-talk (Space held): start recording.",
+        "properties": {
+          "v": {
+            "const": 2,
+            "default": 2,
+            "title": "V",
+            "type": "integer"
+          },
+          "type": {
+            "const": "ptt_start",
+            "default": "ptt_start",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "title": "PttStart",
+        "type": "object"
+      },
+      "PttStop": {
+        "additionalProperties": false,
+        "properties": {
+          "v": {
+            "const": 2,
+            "default": 2,
+            "title": "V",
+            "type": "integer"
+          },
+          "type": {
+            "const": "ptt_stop",
+            "default": "ptt_stop",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "title": "PttStop",
+        "type": "object"
+      },
+      "Shutdown": {
+        "additionalProperties": false,
+        "properties": {
+          "v": {
+            "const": 2,
+            "default": 2,
+            "title": "V",
+            "type": "integer"
+          },
+          "type": {
+            "const": "shutdown",
+            "default": "shutdown",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "title": "Shutdown",
+        "type": "object"
+      },
+      "TextInput": {
+        "additionalProperties": false,
+        "properties": {
+          "v": {
+            "const": 2,
+            "default": 2,
+            "title": "V",
+            "type": "integer"
+          },
+          "type": {
+            "const": "text_input",
+            "default": "text_input",
+            "title": "Type",
+            "type": "string"
+          },
+          "text": {
+            "maxLength": 4000,
+            "minLength": 1,
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "title": "TextInput",
+        "type": "object"
+      }
+    },
+    "discriminator": {
+      "mapping": {
+        "auth": "#/$defs/Auth",
+        "interrupt": "#/$defs/Interrupt",
+        "memory_delete": "#/$defs/MemoryDelete",
+        "memory_forget_all": "#/$defs/MemoryForgetAll",
+        "memory_list": "#/$defs/MemoryList",
+        "mute_toggle": "#/$defs/MuteToggle",
+        "ptt_start": "#/$defs/PttStart",
+        "ptt_stop": "#/$defs/PttStop",
+        "shutdown": "#/$defs/Shutdown",
+        "text_input": "#/$defs/TextInput"
+      },
+      "propertyName": "type"
+    },
+    "oneOf": [
+      {
+        "$ref": "#/$defs/MuteToggle"
+      },
+      {
+        "$ref": "#/$defs/Interrupt"
+      },
+      {
+        "$ref": "#/$defs/Shutdown"
+      },
+      {
+        "$ref": "#/$defs/TextInput"
+      },
+      {
+        "$ref": "#/$defs/Auth"
+      },
+      {
+        "$ref": "#/$defs/PttStart"
+      },
+      {
+        "$ref": "#/$defs/PttStop"
+      },
+      {
+        "$ref": "#/$defs/MemoryList"
+      },
+      {
+        "$ref": "#/$defs/MemoryDelete"
+      },
+      {
+        "$ref": "#/$defs/MemoryForgetAll"
+      }
+    ]
+  }
+}

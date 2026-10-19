@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <!-- Same policy as the header Electron sends (electron/security.js); both apply. -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; connect-src ws://127.0.0.1:*; base-uri 'none'; form-action 'none'; object-src 'none'"
+    />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>J.A.R.V.I.S.</title>
+    <script type="module" src="./main.js"></script>
+  </head>
+  <body>
+    <div class="app" id="app">
+      <header class="titlebar">
+        <span class="brand">J.A.R.V.I.S.</span>
+        <span class="connection" id="connection" data-value="connecting">Connecting</span>
+        <div class="window-buttons">
+          <button type="button" id="btn-compact" title="Compact always-on-top" aria-label="Compact mode"><span class="glyph compact"></span></button>
+          <button type="button" id="btn-minimize" title="Minimize" aria-label="Minimize"><span class="glyph minimize"></span></button>
+          <button type="button" id="btn-close" title="Hide to tray" aria-label="Hide to tray"><span class="glyph close"></span></button>
+        </div>
+      </header>
+
+      <main class="stage" id="stage">
+        <canvas id="reactor" aria-label="Arc reactor showing what Jarvis is doing"></canvas>
+        <div class="badge muted-badge" id="muted-badge" hidden>
+          <span class="glyph mic-off"></span> Microphone muted
+        </div>
+        <div class="banner" id="banner" hidden></div>
+        <p class="compact-line" id="compact-line" lang="en"></p>
+      </main>
+
+      <aside class="drawer" id="drawer" data-open="true">
+        <nav class="tabs" role="tablist">
+          <button type="button" role="tab" data-tab="code" aria-selected="true">Code</button>
+          <button type="button" role="tab" data-tab="sources" aria-selected="false">Sources</button>
+          <button type="button" role="tab" data-tab="memory" aria-selected="false">Memory</button>
+          <button type="button" class="collapse" id="drawer-toggle" title="Collapse panel" aria-label="Collapse panel"></button>
+        </nav>
+        <section class="tab-panel" data-panel="code" id="code-panel"></section>
+        <section class="tab-panel" data-panel="sources" id="sources-panel" hidden></section>
+        <section class="tab-panel" data-panel="memory" id="memory-panel" hidden></section>
+      </aside>
+
+      <section class="conversation" id="conversation" data-open="true">
+        <button type="button" class="collapse" id="conversation-toggle" title="Collapse transcript" aria-label="Collapse transcript"></button>
+        <div class="transcript" id="transcript" aria-live="polite"></div>
+        <form class="input-row" id="input-form" autocomplete="off">
+          <input id="text-input" type="text" maxlength="4000" placeholder="Type to Jarvis and press Enter" aria-label="Message to Jarvis" />
+        </form>
+      </section>
+
+      <footer class="statusbar">
+        <span data-status="state" data-value="idle">Idle</span>
+        <span data-status="mic" data-value="off">Mic</span>
+        <span data-status="model">–</span>
+        <span data-status="cost">$0.00</span>
+        <span class="hint">Space hold: talk · M: mute · Esc: stop</span>
+      </footer>
+    </div>
+  </body>
+</html>

@@ -1,0 +1,40 @@
+# Secrets: never commit the API key.
+.env
+.env.*
+!.env.example
+
+# Personal data: your name/overrides and private working notes.
+config/config.local.yaml
+CLAUDE.md
+docs/brief.md
+*.db
+*.sqlite
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+
+# Local models (downloaded once in Phase 2, never committed)
+models/
+
+# Debug artifacts (raw audio is only ever written when the debug flag is on)
+debug/
+*.wav
+
+# Node / UI (Phase 5)
+node_modules/
+ui/dist/
+ui/out/
+
+# Editors / OS
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store

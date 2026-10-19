@@ -1,0 +1,5 @@
+# Copy to config.local.yaml (git-ignored) and put your own values here.
+# Anything in this file is merged on top of config.yaml.
+assistant:
+  user_name: Tony          # how Jarvis addresses you
+  user_name_hi: टोनी        # the same name in Devanagari, for Hindi replies
