@@ -140,6 +140,16 @@ pdf:
   font_index_regular: 0
   font_index_bold: 1
   max_content_chars: 60000
+  # Designed PDFs: a separate small Claude call turns the content into a layout (theme,
+  # cover, callouts, tables, charts); this machine draws it. If it fails, you get the plain
+  # PDF instead and Jarvis says so. Counts toward the session spending cap.
+  designer:
+    enabled: true
+    model: claude-haiku-5-5
+    effort: low
+    thinking: disabled
+    max_tokens: 32000            # the layout repeats the whole document, so allow room
+    timeout_s: 120
 
 # Lines spoken (or printed) the moment a tool starts, so Jarvis never goes
 # silent during a slow action. {target} is filled in by the tool.

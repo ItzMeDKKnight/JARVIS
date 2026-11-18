@@ -20,6 +20,15 @@ export class TranscriptPanel {
     this.render(this.model.addSystem(text, kind));
   }
 
+  /** A saved file: its name, the folder, and an Open button. */
+  addFile(event, open) {
+    const entry = this.model.addSystem(`Saved ${event.name} in ${event.folder}`, 'file');
+    this.render(entry);
+    const node = this.nodes.get(entry);
+    node.title = event.path;
+    node.append(el('button', { className: 'open-file', text: 'Open', attrs: { type: 'button' }, on: { click: () => open(event.path) } }));
+  }
+
   render(entry) {
     let node = this.nodes.get(entry);
     if (!node) {

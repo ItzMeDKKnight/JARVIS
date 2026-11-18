@@ -15,7 +15,7 @@ about you (memory, logs) sits in one folder on your machine,
 ## Every network call Jarvis makes
 
 Found by searching the code for the Anthropic client, `urllib`, `http`, `socket`,
-`subprocess`, `webbrowser` and `os.startfile`. There are exactly four places that open a
+`subprocess`, `webbrowser` and `os.startfile`. There are exactly five places that open a
 connection to another machine. (The HUD link is a fifth socket, but it never leaves the
 laptop: see [The HUD](#the-hud-electron).) All of them go to `api.anthropic.com` over HTTPS, except the one-time
 model downloader.
@@ -25,10 +25,11 @@ model downloader.
 | 1 | `jarvis/llm/client.py` (conversation) | `api.anthropic.com` | every request you make | the system prompt (`config/persona.md` with your first name), tool definitions, the conversation so far (up to `llm.history_max_turns` turns), **memory notes relevant to this request**, **your local date and time with its UTC offset** (`llm.time_note`, so Claude can answer "what's the date"; turn it off in config.yaml), tool results |
 | 2 | `jarvis/search/anthropic_search.py` (web search, and finding a YouTube video for `play_youtube`) | `api.anthropic.com` | when Jarvis searches, or when you ask it to play something on YouTube | the search query only. Anthropic runs the search with a third-party search provider; no search key or SDK is used locally. YouTube lookups are one search restricted to youtube.com; Jarvis never contacts YouTube itself. `search.user_location` only if you set it (off by default). |
 | 3 | `jarvis/memory/summary.py` (memory consolidation) | `api.anthropic.com` | in the background every `memory.consolidate_every_turns` requests (default 6), when the conversation pauses, and on exit | the text of recent turns **with sensitive sentences already removed**, the current rolling summary, and the list of stored facts, so Claude can update the summary and spot new or outdated facts |
-| 4 | `scripts/download_models.py` (setup only) | `huggingface.co`, `github.com` (pinned URLs in `config/models.yaml`) | only when you run it | an ordinary HTTPS download request; nothing about you |
+| 4 | `jarvis/documents/designer.py` (PDF layout) | `api.anthropic.com` | only when you ask for a PDF (`pdf.designer.enabled`) | the document's title and text that the conversation already wrote, and the theme you asked for. It returns a layout (structured data), never code or markup; your machine draws the PDF offline |
+| 5 | `scripts/download_models.py` (setup only) | `huggingface.co`, `github.com` (pinned URLs in `config/models.yaml`) | only when you run it | an ordinary HTTPS download request; nothing about you |
 
 The official Anthropic SDK also sends request headers with your OS name, CPU architecture,
-Python and SDK version (`x-stainless-*`). Anthropic's data-handling terms apply to calls 1–3.
+Python and SDK version (`x-stainless-*`). Anthropic's data-handling terms apply to calls 1–4.
 
 `scripts/check_caching.py` is an optional diagnostic that makes two tiny conversation
 calls (type 1) with fixed test sentences.
@@ -199,7 +200,7 @@ added `websockets` and the HUD's npm packages.
 
 | Package | License | Network behaviour |
 | --- | --- | --- |
-| `anthropic` 1.15.0 | MIT | Calls the Anthropic API only (calls 1–3). It bundles OpenTelemetry tracing hooks, which export nothing without an OpenTelemetry SDK. Jarvis also disables tracing and trace-header propagation explicitly. |
+| `anthropic` 1.15.0 | MIT | Calls the Anthropic API only (calls 1–4). It bundles OpenTelemetry tracing hooks, which export nothing without an OpenTelemetry SDK. Jarvis also disables tracing and trace-header propagation explicitly. |
 | `opentelemetry-api` 1.45.1 (via anthropic) | Apache-2.0 | none on its own (no SDK or exporter installed) |
 | `httpx2`, `httpcore2`, `h11`, `anyio`, `sniffio`, `idna` (via anthropic) | BSD-3-Clause / MIT | HTTP client stack, used only for the Anthropic API |
 | `truststore` (via anthropic) | MIT | reads the Windows certificate store; no network of its own |

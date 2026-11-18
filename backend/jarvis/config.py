@@ -123,6 +123,17 @@ class ToolsConfig(_Frozen):
     confirm_timeout_s: float = Field(gt=0)
 
 
+class PdfDesignerConfig(_Frozen):
+    """The separate Claude call that lays a PDF out (theme, cover, callouts, tables, charts)."""
+
+    enabled: bool = True
+    model: str
+    effort: Effort
+    thinking: ThinkingMode
+    max_tokens: int = Field(gt=0)
+    timeout_s: float = Field(gt=0)
+
+
 class PdfConfig(_Frozen):
     """create_pdf: where PDFs go and which font renders them (must cover Devanagari)."""
 
@@ -135,6 +146,7 @@ class PdfConfig(_Frozen):
     font_index_regular: int = Field(ge=0)  # face numbers inside a .ttc collection
     font_index_bold: int = Field(ge=0)
     max_content_chars: int = Field(gt=0)
+    designer: PdfDesignerConfig
 
 
 class LocalizedText(_Frozen):

@@ -76,3 +76,21 @@ export function isAllowedRequest(requestUrl, backendPort) {
 export function isTrustedSender(frameUrl) {
   return typeof frameUrl === 'string' && frameUrl.startsWith(`${APP_ORIGIN}/`);
 }
+
+// Folders Jarvis writes PDFs into (see backend/jarvis/documents/pdf_writer.py).
+const OUTPUT_DIR = /^Outputs(_Jarvis(_\d{1,3})?)?$/;
+
+/**
+ * Path of a PDF Jarvis saved that the HUD may open, or null. Only `.pdf` files directly inside
+ * <repo>/Outputs or <repo>/Outputs_Jarvis[_N]; no other location, whatever the backend says.
+ * The caller still checks the file exists and isn't a link (that needs the file system).
+ */
+export function resolveOutputFile(candidate, repoRoot) {
+  if (typeof candidate !== 'string' || candidate.length > 1024 || candidate.includes('\0')) return null;
+  const resolved = path.resolve(candidate);
+  if (path.extname(resolved).toLowerCase() !== '.pdf') return null;
+  const folder = path.dirname(resolved);
+  if (path.dirname(folder).toLowerCase() !== path.resolve(repoRoot).toLowerCase()) return null;
+  if (!OUTPUT_DIR.test(path.basename(folder))) return null;
+  return resolved;
+}

@@ -29,6 +29,7 @@ import anthropic
 from jarvis.assistant import Assistant
 from jarvis.config import REPO_ROOT, ConfigError, JarvisConfig, load_api_key, load_config
 from jarvis.cost import CostTracker
+from jarvis.documents.designer import AnthropicDesigner
 from jarvis.documents.pdf_writer import FpdfWriter
 from jarvis.events import EventBus
 from jarvis.hud_app import HudTokenError, read_token, run_hud
@@ -146,6 +147,11 @@ async def _amain(
                 memory=memory,
                 videos=search,
                 pdf=FpdfWriter(config.pdf, REPO_ROOT),
+                designer=(
+                    AnthropicDesigner(sdk_client, config.pdf.designer, cost)
+                    if config.pdf.designer.enabled
+                    else None
+                ),
             )
             llm = AnthropicLLMClient(sdk_client)
             if hud_token is not None:

@@ -151,6 +151,19 @@ class MemorySnapshot(_Message):
     summary: str | None
 
 
+class FileSaved(_Message):
+    """Jarvis saved a file for you (a PDF). The HUD shows it with an Open button.
+
+    The HUD only opens PDFs inside the project's Outputs folders, whatever ``path`` says.
+    """
+
+    type: Literal["file_saved"] = "file_saved"
+    path: str
+    name: str
+    folder: str
+    kind: Literal["pdf"]
+
+
 StopTarget = Literal["listening", "transcription", "reply", "speech", "tools"]
 
 
@@ -176,7 +189,8 @@ BackendEvent = Annotated[
     | Status
     | UsageUpdate
     | MemorySnapshot
-    | Stopped,
+    | Stopped
+    | FileSaved,
     Field(discriminator="type"),
 ]
 

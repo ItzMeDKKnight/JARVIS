@@ -759,3 +759,19 @@ body.compact .stop-button {
     animation: none;
   }
 }
+
+/* A saved file in the transcript (PDFs): name, folder and an Open button. */
+.line.system.file .text {
+  color: var(--text);
+}
+
+.open-file {
+  margin-left: 10px;
+  padding: 1px 10px;
+  font-family: var(--mono-font);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+  border-color: var(--line-strong);
+}

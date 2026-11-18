@@ -16,7 +16,15 @@ from typing import TextIO
 from pydantic import BaseModel
 
 from jarvis.confirm import is_yes
-from jarvis.events import CodeBlock, ErrorEvent, Sources, ToolFinished, ToolStarted, Transcript
+from jarvis.events import (
+    CodeBlock,
+    ErrorEvent,
+    FileSaved,
+    Sources,
+    ToolFinished,
+    ToolStarted,
+    Transcript,
+)
 
 _QUIT_COMMANDS = frozenset({"/quit", "/exit"})
 PROMPT = "You: "
@@ -44,6 +52,8 @@ class TerminalRenderer:
             self._line("  Sources:")
             for item in event.items:
                 self._line(f"    - {item.title}\n      {item.url}")
+        elif isinstance(event, FileSaved):
+            self._line(f"  Saved: {event.path}")
         elif isinstance(event, ErrorEvent):
             self._line(f"  [error: {event.code}]")
         self._out.flush()

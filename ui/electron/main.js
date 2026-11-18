@@ -36,6 +36,7 @@ import {
   CONTENT_SECURITY_POLICY,
   isAllowedRequest,
   isSafeExternalUrl,
+  resolveOutputFile,
   isTrustedSender,
   resolveAppFile,
 } from './security.js';
@@ -264,6 +265,18 @@ function registerIpc() {
   });
   handle('shell:open', (url) => {
     if (isSafeExternalUrl(url)) shell.openExternal(String(url));
+  });
+  handle('file:open', async (candidate) => {
+    // Only PDFs Jarvis saved in the project's Outputs folders, and never through a link.
+    const file = resolveOutputFile(candidate, REPO_ROOT);
+    if (!file) return false;
+    try {
+      const stat = fs.lstatSync(file);
+      if (!stat.isFile() || stat.isSymbolicLink()) return false;
+    } catch {
+      return false;
+    }
+    return (await shell.openPath(file)) === '';
   });
   handle('window:minimize', () => mainWindow.minimize());
   handle('window:hide', () => mainWindow.hide());

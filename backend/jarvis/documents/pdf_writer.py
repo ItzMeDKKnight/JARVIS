@@ -34,6 +34,7 @@ from pathlib import Path
 from typing import Literal
 
 from jarvis.config import PdfConfig
+from jarvis.documents.design import SafeDesign
 
 MARKER_NAME = ".jarvis-outputs"
 MARKER_TEXT = (
@@ -305,8 +306,26 @@ class FpdfWriter:
         if not blocks:
             raise PdfError("the document has no content")
         data = render_pdf(title, blocks, self.config, now)
+        return self._store(data, file_name or title, now)
+
+    def save_designed(self, design: SafeDesign, file_name: str | None) -> SavedPdf:
+        """Render a sanitised design (see designed_renderer.py) and save it the same way."""
+        from jarvis.documents.designed_renderer import render_designed
+
+        now = datetime.now().astimezone()
+        try:
+            data = render_designed(design, self.config, now)
+        except PdfError:
+            raise
+        except Exception as exc:  # a layout the renderer can't draw: caller falls back
+            raise PdfError(
+                f"the designed layout could not be drawn ({type(exc).__name__})"
+            ) from exc
+        return self._store(data, file_name or design.title, now)
+
+    def _store(self, data: bytes, name: str, now: datetime) -> SavedPdf:
         folder, created, fallback = output_folder(self.root, self.config)
-        path, renamed = write_exclusive(folder, safe_stem(file_name or title, now), data)
+        path, renamed = write_exclusive(folder, safe_stem(name, now), data)
         return SavedPdf(
             path=path,
             folder_name=folder.name,

@@ -121,6 +121,49 @@
         "title": "ErrorEvent",
         "type": "object"
       },
+      "FileSaved": {
+        "additionalProperties": false,
+        "description": "Jarvis saved a file for you (a PDF). The HUD shows it with an Open button.\n\nThe HUD only opens PDFs inside the project's Outputs folders, whatever ``path`` says.",
+        "properties": {
+          "v": {
+            "const": 2,
+            "default": 2,
+            "title": "V",
+            "type": "integer"
+          },
+          "type": {
+            "const": "file_saved",
+            "default": "file_saved",
+            "title": "Type",
+            "type": "string"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "folder": {
+            "title": "Folder",
+            "type": "string"
+          },
+          "kind": {
+            "const": "pdf",
+            "title": "Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "name",
+          "folder",
+          "kind"
+        ],
+        "title": "FileSaved",
+        "type": "object"
+      },
       "MemoryFactItem": {
         "additionalProperties": false,
         "properties": {
@@ -554,6 +597,7 @@
         "audio_level": "#/$defs/AudioLevel",
         "code_block": "#/$defs/CodeBlock",
         "error": "#/$defs/ErrorEvent",
+        "file_saved": "#/$defs/FileSaved",
         "memory": "#/$defs/MemorySnapshot",
         "sources": "#/$defs/Sources",
         "state_changed": "#/$defs/StateChanged",
@@ -602,6 +646,9 @@
       },
       {
         "$ref": "#/$defs/Stopped"
+      },
+      {
+        "$ref": "#/$defs/FileSaved"
       }
     ]
   },

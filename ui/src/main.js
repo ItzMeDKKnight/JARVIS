@@ -147,6 +147,11 @@ const handlers = {
   memory(event) {
     memoryPanel.render(event);
   },
+  file_saved(event) {
+    transcript.addFile(event, async (filePath) => {
+      if (!(await bridge.openFile(filePath))) transcript.addSystem('Could not open that file.', 'error');
+    });
+  },
   stopped(event) {
     const line = describeStop(event.cancelled);
     if (line) transcript.addSystem(line);

@@ -155,7 +155,21 @@ Video). Any browser may also pause it in a background window or on battery saver
 single video can be identified, YouTube's search results open instead and Jarvis tells you
 to pick one. The search takes a few seconds; Jarvis says "Finding that on YouTube." first.
 
-**PDFs.** Only when you ask for one. Files go to the `Outputs` folder in the project
+**PDFs.** Only when you ask for one. They come out *designed*: a colour theme, a cover page
+or title block, a clear heading hierarchy, callout boxes with small icons, striped tables,
+bar / line / pie charts and key-figure cards where the content has them. Claude (the main
+conversation) writes what the document says; a separate small Claude call (Haiku,
+`pdf.designer` in `config.yaml`, about a tenth of a cent) decides the layout as structured
+data; your machine draws it, fully offline. The designer can't change the content: charts
+are only drawn from numbers that are in the text, and a layout that drops content is
+rejected. Ask for a look by voice: "make it dark blue", "formal report style", "make it
+minimal", "warm colours", "J.A.R.V.I.S. style" (themes: classic, dark_blue, formal_report,
+minimal, warm, jarvis), also in Hindi. If the design step fails, times out, or the budget
+can't cover it, you get the plain PDF and Jarvis says so. The HUD shows the saved file with
+an **Open** button (it opens only PDFs in the Outputs folders). Without the HUD, the path is
+printed.
+
+Files go to the `Outputs` folder in the project
 (created on first use, git-ignored). If something called `Outputs` already exists there that
 Jarvis didn't create, Jarvis leaves it alone and uses `Outputs_Jarvis` (or
 `Outputs_Jarvis_2`, ...) from then on, and tells you. An existing PDF is never overwritten:
@@ -163,7 +177,8 @@ a taken name gets a number (`solar-system-2.pdf`). Hindi is rendered with Window
 Nirmala UI font (`pdf.font_file`) and proper text shaping. Copying Hindi text *out of* the
 PDF may give jumbled characters (a limit of how PDF stores shaped Indic text); the page
 itself is correct. While Claude writes a long document there is a pause of several seconds
-before "Saving that as a PDF."
+before "Saving that as a PDF.", and the layout step adds a few seconds more (about 7 s for a
+two-page document).
 
 **Memory.** Besides explicit "remember that ...", Jarvis keeps a short rolling summary of
 your conversations and picks out lasting facts (your projects, people you mention,

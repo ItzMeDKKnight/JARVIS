@@ -20,6 +20,7 @@ contextBridge.exposeInMainWorld('jarvis', {
   reportStatus: (status) => ipcRenderer.invoke('hud:status', { muted: Boolean(status && status.muted) }),
   copyText: (text) => ipcRenderer.invoke('clipboard:write', String(text)),
   openExternal: (url) => ipcRenderer.invoke('shell:open', String(url)),
+  openFile: (filePath) => ipcRenderer.invoke('file:open', String(filePath)),
   minimize: () => ipcRenderer.invoke('window:minimize'),
   hide: () => ipcRenderer.invoke('window:hide'),
   setCompact: (compact) => ipcRenderer.invoke('window:compact', Boolean(compact)),

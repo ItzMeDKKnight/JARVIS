@@ -93,3 +93,24 @@ test('tray icon is drawn in code: opaque ring, transparent corners', () => {
   const centre = ((size / 2) * size + size / 2) * 4;
   assert.ok(pixels[centre + 3] > 200, 'core is opaque');
 });
+
+test('the HUD opens only PDFs inside the project Outputs folders', async () => {
+  const { resolveOutputFile } = await import('../electron/security.js');
+  const repo = path.resolve('repo-root-test');
+  const ok = path.join(repo, 'Outputs', 'solar-system.pdf');
+  assert.equal(resolveOutputFile(ok, repo), ok);
+  assert.ok(resolveOutputFile(path.join(repo, 'Outputs_Jarvis', 'a.pdf'), repo));
+  assert.ok(resolveOutputFile(path.join(repo, 'Outputs_Jarvis_2', 'a.pdf'), repo));
+  for (const bad of [
+    path.join(repo, 'Outputs', 'evil.exe'),
+    path.join(repo, 'Outputs', 'doc.pdf.lnk'),
+    path.join(repo, 'Outputs', '..', 'secret.pdf'),
+    path.join(repo, 'Outputs', 'sub', 'a.pdf'),
+    path.join(repo, 'Other', 'a.pdf'),
+    path.win32.join('C:', 'Windows', 'System32', 'x.pdf'),
+    path.join(repo, 'Outputs', 'a.pdf') + '\0.exe',
+    42,
+  ]) {
+    assert.equal(resolveOutputFile(bad, repo), null, String(bad));
+  }
+});

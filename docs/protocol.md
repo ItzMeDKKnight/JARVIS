@@ -24,6 +24,7 @@ WebSocket (see [Transport](#transport)).
 | `status` | `muted`, `voice`, `hands_free`, `push_to_talk_key` | on connect and on change. `voice: false` means typed input only |
 | `usage` | `model`, `route`, `session_cost_usd`, `cap_usd` | after every conversation call (status bar) |
 | `memory` | `enabled`, `facts`: `[{id, text, category, source, created_at}]`, `summary` | on connect, on `memory_list`, after HUD deletions |
+| `file_saved` | `path`, `name`, `folder`, `kind`: `pdf` | a file Jarvis saved for you; the HUD shows it with an Open button (it opens only `.pdf` files inside the project's Outputs folders) |
 | `stopped` | `cancelled`: list of `listening` \| `transcription` \| `reply` \| `speech` \| `tools` | after every `interrupt`; empty when Jarvis was already idle |
 
 ## UI → backend

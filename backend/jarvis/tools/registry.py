@@ -20,6 +20,7 @@ from typing import Any
 from pydantic import ValidationError
 
 from jarvis.config import JarvisConfig, LocalizedText
+from jarvis.documents.designer import Designer
 from jarvis.events import ToolFinished, ToolStarted
 from jarvis.memory.manager import MemoryService
 from jarvis.os_adapters.base import AppLauncher, BrowserOpener
@@ -152,6 +153,7 @@ def build_default_registry(
     memory: MemoryService | None = None,
     videos: VideoFinder | None = None,
     pdf: PdfWriter | None = None,
+    designer: Designer | None = None,
 ) -> ToolRegistry:
     """Register the built-in tools (memory tools only when memory is enabled).
 
@@ -177,7 +179,11 @@ def build_default_registry(
     if videos is not None:
         registry.register(PlayYouTubeTool(videos, browser, timeout_s=config.search.timeout_s))
     if pdf is not None:
-        registry.register(CreatePdfTool(pdf, timeout_s=tools_cfg.timeout_s))
+        # The design call can take a while for a long document; drawing and saving come after.
+        pdf_timeout = tools_cfg.timeout_s + (
+            config.pdf.designer.timeout_s if designer is not None else 0
+        )
+        registry.register(CreatePdfTool(pdf, timeout_s=pdf_timeout, designer=designer))
     registry.register(WebSearchTool(search, timeout_s=config.search.timeout_s))
     registry.register(ShowCodeTool(timeout_s=tools_cfg.timeout_s))
     if memory is not None:
