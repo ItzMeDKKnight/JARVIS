@@ -5,10 +5,10 @@ English, Hindi and Hinglish. Speech stays on your machine; only the transcribed 
 request is sent to the Claude API.
 
 > **Status: all 5 phases built.** Say "Hey Jarvis" (or hold a key), speak in English or
-> Hindi, and Jarvis answers out loud while a holographic arc reactor reacts to your voice and
-> its own. It opens apps and websites, searches the web, shows code in a side panel,
-> remembers things about you across restarts (locally, in SQLite), and never spends more
-> than $5 per session.
+> Hindi, and Jarvis answers out loud while a holographic 3D lens HUD reacts to your voice and
+> its own. It opens apps and websites (by name, too), plays YouTube videos, searches the
+> web, shows code in a side panel, writes PDFs for you, remembers things about you across
+> restarts (locally, in SQLite), and never spends more than $5 per session.
 
 ## Requirements
 
@@ -67,21 +67,32 @@ Optional: install the Piper fallback voice engine (GPL-3.0) with
 
 **The HUD** (`cd ui; npm start`) is the main way to use Jarvis:
 
-- The arc reactor shows what Jarvis is doing. Dim and breathing means idle; a **white aura**
-  that follows your voice means listening; the coils light up in a chase while it's
-  thinking; a **cyan aura** that follows its voice means speaking. Amber means an error;
-  grey and desaturated means muted; very dim means the backend is offline.
+- The holographic lens shows what Jarvis is doing. Dim, slowly breathing, mostly blue with
+  orange accents on one side means idle; glowing **blue** and pulsing with your voice means
+  listening; **blue and orange segments racing round** the rings means thinking; glowing
+  **orange** and pulsing with its voice means speaking. **Red** with a brief flicker is an
+  error; grey means muted; very dim and nearly still means the backend is offline. Move the
+  mouse over it for a little 3D parallax.
 - Bottom: the live transcript and a text box for typing instead of talking.
 - Right: **Code** (full code with highlighting and a Copy button), **Sources** (from web
   searches; click to open in your browser), and **Memory** (everything Jarvis remembers;
   delete single facts, or "Forget everything" with a second click to confirm).
 - Status bar: state, microphone, model in use, and spending against the $5 session cap.
+- **Stop** (the button under the lens, or **Esc**) halts everything Jarvis is doing at
+  that moment: listening or recording, transcription, the Claude request, speech, and any
+  running or queued actions. Speech goes silent within a few tens of milliseconds
+  (Bluetooth headphones add their own delay). Nothing that was stopped finishes or speaks
+  later, and the transcript says what was stopped. Jarvis then waits for "Hey Jarvis" or
+  push-to-talk again; it doesn't quit and doesn't mute the microphone (a muted mic stays
+  muted). Pressing Stop when Jarvis is idle does nothing. Two things can't be undone once
+  started: an app launch already handed to Windows still opens, and a Whisper pass already
+  running finishes in the background (its text is thrown away).
 - Keys: hold **Space** to talk (when the text box isn't focused), **M** mutes the
-  microphone, **Esc** stops Jarvis. Left Ctrl push-to-talk and "Hey Jarvis" work as well.
+  microphone, **Esc** = Stop. Left Ctrl push-to-talk and "Hey Jarvis" work as well.
 - The title-bar square button switches to a **compact always-on-top** window. The tray menu
   has mute, compact mode, **start on login**, and quit.
 - With reduced motion turned on in Windows (Settings, Accessibility, Visual effects,
-  Animation effects off), the reactor animates more calmly.
+  Animation effects off), the lens turns slower, the camera stops drifting and pulses are gentler.
 
 **Without the HUD**, from the repository folder:
 
@@ -124,12 +135,35 @@ Things to try:
 | `open chrome` | on the allowlist but not installed on this laptop: Jarvis says so |
 | `what is the weather in Mumbai` | "Searching for that now.", a short answer, sources listed |
 | `open youtube.com` | opens the site in your default browser (http/https only) |
+| `open GitHub` / `Gmail kholo` / `जीमेल खोलो` | opens a site by name, from the `websites:` list in `config/apps.yaml` |
+| `play Believer on YouTube` / `YouTube pe Kesariya chalao` / `यूट्यूब पर भजन चलाओ` | finds the video and opens it in your browser, where it starts playing |
+| `make a PDF about the solar system` / `put that in a PDF` | writes a formatted PDF (title, headings, paragraphs, lists; Hindi works) and tells you its name and folder |
 | `write a python function for binary search` | a short spoken-style explanation, full code in a code block |
 | `remember that my sister is called Meera` | stored in long-term memory; survives restarts |
 | `what do you remember about my sister?` / `मेरी बहन का नाम क्या है?` | answers from memory |
 | `forget that my sister is Meera` / `भूल जाओ` | deleted (asks first if several notes match) |
 | `forget everything about me` | asks "Are you sure?", then erases all memory |
 | `remember my wifi password is tiger123` | politely refused: passwords, PINs, ID and card numbers are never stored |
+
+**YouTube.** Jarvis finds the video with one Anthropic-hosted web search restricted to
+youtube.com (about a cent; it counts toward the $5 cap; Jarvis itself never contacts
+YouTube), then opens the video's watch page in your default browser. YouTube starts
+playback by itself. Limits: Chrome and Edge allow that autoplay with sound on YouTube, but
+**Firefox blocks audible autoplay by default**, so there the video waits for a click unless
+you allow autoplay for youtube.com (padlock icon, Permissions, Autoplay: Allow Audio and
+Video). Any browser may also pause it in a background window or on battery saver. If no
+single video can be identified, YouTube's search results open instead and Jarvis tells you
+to pick one. The search takes a few seconds; Jarvis says "Finding that on YouTube." first.
+
+**PDFs.** Only when you ask for one. Files go to the `Outputs` folder in the project
+(created on first use, git-ignored). If something called `Outputs` already exists there that
+Jarvis didn't create, Jarvis leaves it alone and uses `Outputs_Jarvis` (or
+`Outputs_Jarvis_2`, ...) from then on, and tells you. An existing PDF is never overwritten:
+a taken name gets a number (`solar-system-2.pdf`). Hindi is rendered with Windows' built-in
+Nirmala UI font (`pdf.font_file`) and proper text shaping. Copying Hindi text *out of* the
+PDF may give jumbled characters (a limit of how PDF stores shaped Indic text); the page
+itself is correct. While Claude writes a long document there is a pause of several seconds
+before "Saving that as a PDF."
 
 **Memory.** Besides explicit "remember that ...", Jarvis keeps a short rolling summary of
 your conversations and picks out lasting facts (your projects, people you mention,
@@ -148,10 +182,18 @@ Everything lives in `%LOCALAPPDATA%\Jarvis\memory.db`; see [PRIVACY.md](PRIVACY.
   memory (`memory:`; set `enabled: false` to turn it off), list prices for the cost log
   (`pricing:`), and the per-request output-token cap (`llm.max_output_tokens_per_turn`).
 - `config/apps.yaml`: the app allowlist with English and Hindi aliases. To find a Store app's
-  id, run `Get-StartApps` in PowerShell.
+  id, run `Get-StartApps` in PowerShell. Its `websites:` section lists sites Jarvis opens by
+  name (http/https only). A listed name wins over a Start Menu shortcut, so leave out sites
+  you'd rather open as an installed app.
+- `pdf:` in `config.yaml`: the output folder names and the PDF font.
+- Latency: `tts.phrase_cache_size` (narration lines replayed from memory), `audio.output_latency` (`low` = replies start ~100 ms sooner; set `high` if
+  playback ever crackles) and `vad.end_silence_ms` (how long a pause ends your sentence;
+  lower is snappier but may cut you off mid-sentence).
 - `config/persona.md`: Jarvis's personality and rules. Edit freely.
-- `ui/src/hologram/states.js`: the reactor's look: proportions, colours, `coreShape`
-  (`'circle'` or the Mark II `'triangle'`), and the visual parameters for each state.
+- `ui/src/hologram/states.js`: the lens HUD's look: the blue / orange / red `PALETTES`, the
+  `LAYERS` list (every ring, arc, tick dial and outer element with its radius, depth, speed
+  and tilt), `THEME` (core glow, particles, bloom, camera drift, 400 ms cross-fade, compact
+  thresholds) and `STATE_PARAMS` (per-state intensity, colour mix, spin, pulse).
 - Spending cap: `budget.session_cap_usd` (default 5.0). Before every Claude call Jarvis
   estimates its worst case and won't make it if that could cross the cap. It warns out
   loud once at 80%. The cap resets when Jarvis restarts.

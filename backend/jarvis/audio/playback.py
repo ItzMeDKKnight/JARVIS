@@ -83,6 +83,7 @@ class AudioPlayer:
                 dtype="float32",
                 blocksize=self._rate * _OUTPUT_BLOCK_MS // 1000,
                 device=resolve_device(self._config.output_device, "output"),
+                latency=self._config.output_latency,
                 callback=self._callback,
             )
             self._stream.start()
@@ -119,8 +120,25 @@ class AudioPlayer:
             self._playing = False
         self._idle.set()
         if was_playing:
+            self._discard_device_buffer()
             self._on_level(0.0)
             self._on_idle()
+
+    def _discard_device_buffer(self) -> None:
+        """Drop audio already handed to the device, so a stop is silent at once.
+
+        Clearing our queue only affects future callbacks; the driver still holds up
+        to ``stream.latency`` of sound (about 200 ms with MME's default). Aborting
+        discards that buffer; the stream is restarted right away for the next reply.
+        """
+        stream = self._stream
+        if stream is None:
+            return
+        try:
+            stream.abort()
+            stream.start()
+        except sd.PortAudioError:
+            logger.exception("could not reset the output stream after a stop")
 
     async def drain(self) -> None:
         await self._idle.wait()

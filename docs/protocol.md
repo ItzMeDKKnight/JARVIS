@@ -24,6 +24,7 @@ WebSocket (see [Transport](#transport)).
 | `status` | `muted`, `voice`, `hands_free`, `push_to_talk_key` | on connect and on change. `voice: false` means typed input only |
 | `usage` | `model`, `route`, `session_cost_usd`, `cap_usd` | after every conversation call (status bar) |
 | `memory` | `enabled`, `facts`: `[{id, text, category, source, created_at}]`, `summary` | on connect, on `memory_list`, after HUD deletions |
+| `stopped` | `cancelled`: list of `listening` \| `transcription` \| `reply` \| `speech` \| `tools` | after every `interrupt`; empty when Jarvis was already idle |
 
 ## UI → backend
 
@@ -32,7 +33,7 @@ WebSocket (see [Transport](#transport)).
 | `auth` | `token` (16–256 chars) | **must be the first message**; the per-launch token |
 | `text_input` | `text` (1–4000 chars) | typed request, or the answer to a pending yes/no question |
 | `mute_toggle` | none | closes / reopens the microphone |
-| `interrupt` | none | stop speaking / thinking / listening |
+| `interrupt` | none | **Stop** (HUD button and Esc): halts listening/recording, transcription, the Claude request, speech and running or queued tools; ends idle (mute unchanged); answered by `stopped` |
 | `ptt_start` / `ptt_stop` | none | HUD push-to-talk (Space held); same 300 ms hold rule as the keyboard |
 | `memory_list` | none | asks for a `memory` event |
 | `memory_delete` | `ids` (1–500 ints) | forgets those facts (same guarantees as a spoken "forget") |

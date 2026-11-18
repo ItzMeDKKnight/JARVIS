@@ -23,13 +23,16 @@ from jarvis.config import JarvisConfig, LocalizedText
 from jarvis.events import ToolFinished, ToolStarted
 from jarvis.memory.manager import MemoryService
 from jarvis.os_adapters.base import AppLauncher, BrowserOpener
-from jarvis.search.base import SearchProvider
+from jarvis.search.base import SearchProvider, VideoFinder
 from jarvis.tools.app_catalog import AppCatalog
 from jarvis.tools.base import Tool, ToolContext, ToolInput, ToolOutcome
 from jarvis.tools.memory_tools import ForgetMemoryTool, RecallMemoryTool, RememberTool
 from jarvis.tools.open_app import OpenAppTool
 from jarvis.tools.open_url import OpenUrlTool
+from jarvis.tools.pdf_tool import CreatePdfTool, PdfWriter
+from jarvis.tools.play_youtube import PlayYouTubeTool
 from jarvis.tools.show_code import ShowCodeTool
+from jarvis.tools.site_catalog import SiteCatalog
 from jarvis.tools.web_search import WebSearchTool
 
 logger = logging.getLogger(__name__)
@@ -147,9 +150,16 @@ def build_default_registry(
     browser: BrowserOpener,
     search: SearchProvider,
     memory: MemoryService | None = None,
+    videos: VideoFinder | None = None,
+    pdf: PdfWriter | None = None,
 ) -> ToolRegistry:
-    """Register the built-in tools (memory tools only when memory is enabled)."""
+    """Register the built-in tools (memory tools only when memory is enabled).
+
+    ``videos`` enables play_youtube and ``pdf`` enables create_pdf; both are optional so
+    a front-end (or a test) only gets the tools it has backends for.
+    """
     tools_cfg = config.tools
+    sites = SiteCatalog(config.websites)
     registry = ToolRegistry(config.narration)
     registry.register(
         OpenAppTool(
@@ -159,9 +169,15 @@ def build_default_registry(
             confirm_timeout_s=tools_cfg.confirm_timeout_s,
             search_start_menu=tools_cfg.search_start_menu_for_unknown_apps,
             confirm_question=config.messages.confirm_unknown_app,
+            sites=sites,
+            browser=browser,
         )
     )
-    registry.register(OpenUrlTool(browser, timeout_s=tools_cfg.timeout_s))
+    registry.register(OpenUrlTool(browser, timeout_s=tools_cfg.timeout_s, sites=sites))
+    if videos is not None:
+        registry.register(PlayYouTubeTool(videos, browser, timeout_s=config.search.timeout_s))
+    if pdf is not None:
+        registry.register(CreatePdfTool(pdf, timeout_s=tools_cfg.timeout_s))
     registry.register(WebSearchTool(search, timeout_s=config.search.timeout_s))
     registry.register(ShowCodeTool(timeout_s=tools_cfg.timeout_s))
     if memory is not None:

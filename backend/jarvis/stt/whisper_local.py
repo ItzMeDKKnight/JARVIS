@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import threading
 from pathlib import Path
 
 import numpy as np
@@ -73,6 +74,9 @@ class WhisperSTT:
             raise STTError(f"Whisper model missing in {path}. Run scripts/download_models.py.")
         self._config = config
         self._vad = VadOptions()
+        # One pass at a time: a stop can abandon a transcription while Whisper is still
+        # running it, and the encoder cache below is not safe for concurrent calls.
+        self._lock = threading.Lock()
         self._model = _EncoderCachingModel(
             str(path),
             device="cpu",
@@ -82,6 +86,10 @@ class WhisperSTT:
         )
 
     def transcribe(self, audio: AudioArray) -> Transcription:
+        with self._lock:
+            return self._transcribe(audio)
+
+    def _transcribe(self, audio: AudioArray) -> Transcription:
         speech = self._speech_only(audio)
         if speech.size == 0:
             return Transcription(

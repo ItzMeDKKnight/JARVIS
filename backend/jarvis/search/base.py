@@ -33,3 +33,12 @@ class SearchProvider(Protocol):
     async def search(self, query: str) -> SearchResult:
         """Search the web for ``query``; raise SearchError on failure."""
         ...
+
+
+class VideoFinder(Protocol):
+    async def find_videos(self, query: str) -> tuple[SearchSource, ...]:
+        """Return YouTube pages matching ``query``, best first; raise SearchError on failure.
+
+        Results are web content (untrusted): callers must validate every URL.
+        """
+        ...

@@ -5,14 +5,14 @@
 ```mermaid
 flowchart LR
     subgraph hud["jarvis-hud (Electron, ui/)"]
-        MAIN[main process<br/>window · tray · backend lifecycle<br/>network guard · CSP] -->|preload bridge| R[renderer<br/>Three.js reactor · panels]
+        MAIN[main process<br/>window · tray · backend lifecycle<br/>network guard · CSP] -->|preload bridge| R[renderer<br/>Three.js lens HUD · panels]
     end
     subgraph core["jarvis-core (Python, backend/)"]
         WW[Wake word<br/>openWakeWord] --> VAD[Silero VAD] --> STT[faster-whisper]
         STT --> VS[VoiceSession]
         VS --> A[Assistant<br/>conversation loop]
         A <--> LLM[LLM client]
-        A --> REG[Tool registry] --> TOOLS[open_app · open_url · web_search<br/>show_code · remember · recall · forget]
+        A --> REG[Tool registry] --> TOOLS[open_app · open_url · play_youtube · web_search<br/>show_code · create_pdf · remember · recall · forget]
         A --> TTS[Kokoro / Piper TTS]
         A <--> MEM[MemoryService<br/>SQLite]
         A --> COST[CostTracker<br/>$5 cap]
@@ -225,35 +225,42 @@ Data never flows anywhere else: audio stays inside jarvis-core, the HUD only tal
 | `src/ws-client.js` | reconnecting client: fresh port and token per attempt, `auth` first, backoff |
 | `src/protocol.js` | version and message types read from `protocol/events.schema.json` |
 | `src/hologram/core.js` | Three.js scene, bloom, easing, audio envelope, parallax, frame pacing |
-| `src/hologram/states.js` | theme (proportions, colours, `coreShape`) and per-state targets |
-| `src/hologram/shaders/` | `reactor.frag` (housing, coils, light, glass layers), `aura.frag`, `hud.frag`, `particles.*`, `final.frag` (shimmer, scanlines, flicker, tone curve) |
+| `src/hologram/states.js` | palettes, the ring `LAYERS` list, `THEME` (core, particles, bloom, camera, fade, compact) and per-state targets |
+| `src/hologram/geometry.js` | procedural generators: rings, arcs, dashes, ticks, spokes, blocks, readout glyphs, flares, particles, fragments (seeded, pure, unit-tested) |
+| `src/hologram/shaders/` | `palette.glsl` (gradient by radius, two-tone, chase, error, desaturation, pulse), `hud.*` (line work), `glow.*` (core, flares), `drift.*` (particles, fragments), `final.frag` (chromatic edges, hue-preserving tone curve, flicker, vignette) |
 | `src/panels/` | transcript, code (highlight.js + copy), sources, memory, status bar |
-| `src/shortcuts.js` | Space push-to-talk, M mute, Esc interrupt |
+| `src/shortcuts.js` | Space push-to-talk, M mute, Esc stop |
+| `src/stop.js` | the Stop button; Esc and the button share `StopControl.stop()` → `interrupt` → `VoiceSession.interrupt()` (one stop path), acknowledged by `stopped` |
 
-### The reactor
+### The lens HUD
 
-Four stacked shader planes at different depths, tilted toward the mouse so the layers show
-real parallax: (0) brushed-steel housing with engraved ticks, six bolts and four notches;
-(1) ten trapezoidal copper-wound coils with light leaking from the gaps; (2) the inner glow
-ring and the core (circle, or the Mark II triangle); (3) a glass cover with a slow
-reflection sweep. Behind them sit an additive aura, faint HUD arcs and drifting particles.
-Then UnrealBloom, and a final pass for heat shimmer, scanlines, flicker, desaturation (muted
-/ offline), the amber error tint and a soft tone curve.
+About 25 procedurally generated layers (`LAYERS` in `states.js`), each at its own depth so
+the perspective camera gives true parallax: an iris of thin nested rings around a glowing
+core, segmented thick arcs (drawn as outlines with a faint fill), thin and dashed rings,
+tick dials, lens-flare hot spots, and an outer layer of spokes, small blocks and unreadable
+"readout" glyph clusters. Rings rotate at their own speeds and directions; several are
+tilted a few degrees. Particles and line fragments drift outward through the depth. The
+camera drifts slowly and leans with the mouse. Everything is additive line work coloured by
+one shared palette shader (white-hot centre to saturated edge), then UnrealBloom and a final
+pass (chromatic softness at the edges, a hue-preserving tone curve, flicker, vignette).
 
-| State | Look (targets in `states.js`, eased per frame) |
+| State | Look (targets in `states.js`, cross-faded over ~400 ms) |
 | --- | --- |
-| idle | dim pale glow, slow breathing, coils barely lit |
-| listening | **white** aura, ripple and reach driven by the mic level; core toward white |
-| thinking | coil **chase** around the ring, ring pulses blue, no aura |
-| speaking | **cyan** aura driven by the TTS level; core toward cyan |
-| error | amber/red flicker, held at least 1.2 s, then whatever the state is |
-| muted | desaturated, dim, "Microphone muted" badge |
-| offline | very dim, desaturated, faint flicker (backend unreachable) |
+| idle | dim, slow breathing, mostly blue with orange accents on one side, slow rotation |
+| listening | **blue** gradient; glow, core size and an outward ring pulse follow the mic level |
+| thinking | blue/orange segments chase round the rings, faster rotation, no audio reaction |
+| speaking | **orange** gradient; glow, core size and ring pulse follow Jarvis's voice level |
+| error | **red** with a brief flicker, held at least 1.2 s |
+| muted | grey, desaturated, slow |
+| offline | very dim, nearly static (backend unreachable) |
 
-Performance: about 20 fps in calm states (driven by a timer, not requestAnimationFrame, which
-would keep Chromium's compositor ticking at 60 Hz) and 60 fps when active; the invisible aura
-isn't drawn; rendering stops while the window is hidden; pixel ratio capped at 2; `powerPreference: 'low-power'`. Reduced motion
-slows sweeps and turns off ripples, flicker and most particles.
+Performance: one draw call per layer (~30), additive blending without depth work, ~30 fps in
+calm states on a timer (requestAnimationFrame would keep Chromium's compositor ticking at
+60 Hz) and 60 fps when active; rendering stops while the window is hidden; pixel ratio capped
+at 2; `powerPreference: 'low-power'`. Below 440 px (the compact window) layers marked
+`compact: false` are skipped and decorative counts drop to 45%. Reduced motion: quarter-speed
+rotation, no camera drift, gentler pulses, no flicker, 30% particles. Geometry and materials
+are disposed on every rebuild and on `dispose()`.
 
 ## Error handling
 

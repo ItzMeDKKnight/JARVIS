@@ -21,7 +21,11 @@ from jarvis.cost import CostTracker
 from jarvis.events import EventBus
 from jarvis.llm.types import LLMClient
 from jarvis.memory.manager import MemoryService
-from jarvis.os_adapters.base import default_key_state, user_data_dir
+from jarvis.os_adapters.base import (
+    default_key_state,
+    opt_out_of_power_throttling,
+    user_data_dir,
+)
 from jarvis.privacy import disable_onnxruntime_telemetry
 from jarvis.speech import VoiceSpeaker
 from jarvis.state import StateMachine
@@ -86,6 +90,8 @@ async def build_voice(
     The microphone is opened later, by ``session.run()``.
     """
     disable_onnxruntime_telemetry()
+    # Whisper and Kokoro are CPU-bound; Windows' background throttling slowed them ~25%.
+    logger.info("power throttling opt-out", extra={"applied": opt_out_of_power_throttling()})
     from jarvis.stt.whisper_local import WhisperSTT  # heavy import, after offline env is set
 
     loop = asyncio.get_running_loop()
@@ -120,7 +126,13 @@ async def build_voice(
         on_start=on_start,
         on_idle=on_idle,
     )
-    speaker = VoiceSpeaker(engine, player, segmenter=config.tts.segmenter, postfx=config.tts.postfx)
+    speaker = VoiceSpeaker(
+        engine,
+        player,
+        segmenter=config.tts.segmenter,
+        postfx=config.tts.postfx,
+        phrase_cache_size=config.tts.phrase_cache_size,
+    )
     try:
         player.open()
     except AudioDeviceError as exc:

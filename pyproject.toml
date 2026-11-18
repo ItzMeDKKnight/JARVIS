@@ -24,6 +24,11 @@ dependencies = [
     "numpy>=2.0.2",
     # HUD link (Phase 5): local WebSocket server on 127.0.0.1. No network calls of its own.
     "websockets==17.2",
+    # create_pdf: fpdf2 (LGPL-3.0, pip-installed, never vendored) lays out the PDF;
+    # uharfbuzz (Apache-2.0) shapes Devanagari. Offline: Jarvis only ever places text,
+    # never fpdf2's remote-image loading. Pulls in fontTools (MIT) and Pillow (MIT-CMU).
+    "fpdf2==2.9.0",
+    "uharfbuzz==0.57.0",
 ]
 
 [project.optional-dependencies]
@@ -89,5 +94,5 @@ packages = ["jarvis"]
 
 # Audio/ML libraries without type information.
 [[tool.mypy.overrides]]
-module = ["sounddevice", "faster_whisper", "faster_whisper.*", "onnxruntime", "kokoro_onnx", "piper", "psutil"]
+module = ["sounddevice", "faster_whisper", "faster_whisper.*", "onnxruntime", "kokoro_onnx", "piper", "psutil", "fpdf", "fpdf.*"]
 ignore_missing_imports = true

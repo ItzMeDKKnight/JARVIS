@@ -328,6 +328,43 @@
         "title": "Status",
         "type": "object"
       },
+      "Stopped": {
+        "additionalProperties": false,
+        "description": "Acknowledges a stop (HUD Stop button or Esc): what was actually cancelled.\n\nEmpty ``cancelled`` means Jarvis was already idle and nothing changed.",
+        "properties": {
+          "v": {
+            "const": 2,
+            "default": 2,
+            "title": "V",
+            "type": "integer"
+          },
+          "type": {
+            "const": "stopped",
+            "default": "stopped",
+            "title": "Type",
+            "type": "string"
+          },
+          "cancelled": {
+            "items": {
+              "enum": [
+                "listening",
+                "transcription",
+                "reply",
+                "speech",
+                "tools"
+              ],
+              "type": "string"
+            },
+            "title": "Cancelled",
+            "type": "array"
+          }
+        },
+        "required": [
+          "cancelled"
+        ],
+        "title": "Stopped",
+        "type": "object"
+      },
       "ToolFinished": {
         "additionalProperties": false,
         "properties": {
@@ -521,6 +558,7 @@
         "sources": "#/$defs/Sources",
         "state_changed": "#/$defs/StateChanged",
         "status": "#/$defs/Status",
+        "stopped": "#/$defs/Stopped",
         "tool_finished": "#/$defs/ToolFinished",
         "tool_started": "#/$defs/ToolStarted",
         "transcript": "#/$defs/Transcript",
@@ -561,6 +599,9 @@
       },
       {
         "$ref": "#/$defs/MemorySnapshot"
+      },
+      {
+        "$ref": "#/$defs/Stopped"
       }
     ]
   },
@@ -597,6 +638,7 @@
       },
       "Interrupt": {
         "additionalProperties": false,
+        "description": "Stop everything Jarvis is doing right now (HUD Stop button and Esc both send this).",
         "properties": {
           "v": {
             "const": 2,

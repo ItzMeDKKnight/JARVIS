@@ -123,6 +123,20 @@ class ToolsConfig(_Frozen):
     confirm_timeout_s: float = Field(gt=0)
 
 
+class PdfConfig(_Frozen):
+    """create_pdf: where PDFs go and which font renders them (must cover Devanagari)."""
+
+    # Folder in the project root. If something with this name exists that Jarvis did not
+    # create, fallback_dir_name (then fallback_dir_name_2, _3, ...) is used instead.
+    output_dir_name: str = Field(pattern=r"^[A-Za-z0-9_\-]+$")
+    fallback_dir_name: str = Field(pattern=r"^[A-Za-z0-9_\-]+$")
+    # %ENV_VARS% are expanded. Nirmala UI ships with Windows and covers Latin + Devanagari.
+    font_file: str = Field(min_length=1)
+    font_index_regular: int = Field(ge=0)  # face numbers inside a .ttc collection
+    font_index_bold: int = Field(ge=0)
+    max_content_chars: int = Field(gt=0)
+
+
 class LocalizedText(_Frozen):
     """A line available in every supported reply language."""
 
@@ -245,15 +259,28 @@ class AppEntry(_Frozen):
     launch: LaunchSpec
 
 
+class WebsiteEntry(_Frozen):
+    """A website Jarvis can open by its spoken name ("open GitHub", "जीमेल खोलो")."""
+
+    id: str
+    display_name: str
+    aliases: tuple[str, ...] = Field(min_length=1)
+    url: str = Field(pattern=r"^https?://[^\s@]+$")
+
+
 class AppsFile(_Frozen):
     apps: tuple[AppEntry, ...]
+    websites: tuple[WebsiteEntry, ...] = ()
 
     @model_validator(mode="after")
     def _unique_ids(self) -> AppsFile:
-        ids = [app.id for app in self.apps]
-        duplicates = {i for i in ids if ids.count(i) > 1}
-        if duplicates:
-            raise ValueError(f"duplicate app ids: {sorted(duplicates)}")
+        for kind, ids in (
+            ("app", [app.id for app in self.apps]),
+            ("website", [site.id for site in self.websites]),
+        ):
+            duplicates = {i for i in ids if ids.count(i) > 1}
+            if duplicates:
+                raise ValueError(f"duplicate {kind} ids: {sorted(duplicates)}")
         return self
 
 
@@ -265,6 +292,9 @@ class AudioConfig(_Frozen):
     block_ms: int = Field(gt=0, le=200)
     level_floor_db: float
     level_ceiling_db: float
+    # PortAudio output latency. "low" (~100 ms on MME) starts each reply sooner than
+    # "high" (~200 ms); switch back to "high" if playback ever crackles.
+    output_latency: Literal["low", "high"] = "high"
     debug_save_audio: bool = False
 
     @model_validator(mode="after")
@@ -368,6 +398,9 @@ class TTSConfig(_Frozen):
     piper: PiperConfig
     postfx: PostFXConfig
     segmenter: SegmenterConfig
+    # Rendered audio kept for complete lines Jarvis says often (narration, greeting,
+    # fallbacks), so a repeat plays at once instead of being synthesised again. 0 = off.
+    phrase_cache_size: int = Field(default=64, ge=0)
 
 
 class JarvisConfig(_Frozen):
@@ -377,6 +410,7 @@ class JarvisConfig(_Frozen):
     llm: LLMConfig
     search: SearchConfig
     tools: ToolsConfig
+    pdf: PdfConfig
     narration: dict[str, LocalizedText]
     messages: MessagesConfig
     logging: LoggingConfig
@@ -393,6 +427,7 @@ class JarvisConfig(_Frozen):
     budget: BudgetConfig
     server: ServerConfig
     apps: tuple[AppEntry, ...] = ()
+    websites: tuple[WebsiteEntry, ...] = ()
     persona_template: str = ""
 
 
@@ -489,7 +524,9 @@ def load_config(path: Path | None = None, *, local_overrides: bool = True) -> Ja
     except FileNotFoundError as exc:
         raise ConfigError(f"persona file not found: {persona_path}") from exc
 
-    return base.model_copy(update={"apps": apps.apps, "persona_template": persona})
+    return base.model_copy(
+        update={"apps": apps.apps, "websites": apps.websites, "persona_template": persona}
+    )
 
 
 def load_api_key(env_file: Path | None = None) -> str:

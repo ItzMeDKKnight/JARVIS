@@ -139,7 +139,7 @@ function createWindow() {
     minWidth: COMPACT_SIZE.width,
     minHeight: COMPACT_SIZE.height,
     frame: false,
-    backgroundColor: '#03070c',
+    backgroundColor: '#02040a',
     alwaysOnTop: settings.compact,
     show: false,
     icon: icon(),

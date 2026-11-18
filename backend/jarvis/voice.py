@@ -47,7 +47,7 @@ from jarvis.audio.types import AudioArray
 from jarvis.audio.vad import Endpointer, SpeechEvent
 from jarvis.config import JarvisConfig, LocalizedText
 from jarvis.confirm import is_yes
-from jarvis.events import AssistantState, AudioLevel, EventBus, Status, Transcript
+from jarvis.events import AssistantState, AudioLevel, EventBus, Status, StopTarget, Transcript
 from jarvis.speech import Speaker
 from jarvis.state import StateMachine
 from jarvis.stt.base import SpeechToText, Transcription
@@ -169,6 +169,9 @@ class VoiceSession:
         self._hud_ptt = CommandPushToTalk(hold_threshold_ms=config.voice.hold_threshold_ms)
         self._muted = False
         self._follow_up_after_turn = False
+        # Bumped by interrupt(): work started before a stop checks it and drops its result.
+        self._stop_generation = 0
+        self._stt_task: asyncio.Future[Transcription] | None = None
 
     def attach(self, assistant: Assistant) -> None:
         self._assistant = assistant
@@ -247,9 +250,13 @@ class VoiceSession:
             await self._interrupt_turn()
         self._mode = Mode.BUSY  # ignore audio while the greeting plays
         if not barge_in and self._should_greet():
+            generation = self._stop_generation
             await self._require_assistant().announce(
                 self._config.session.greeting, "en", then=S.LISTENING
             )
+            if generation != self._stop_generation:
+                await self._go_idle()  # stopped during the greeting: don't start listening
+                return
         await self._start_listening(Purpose.COMMAND, self._config.vad.start_timeout_s)
 
     async def _on_ptt_press(self, ptt: PushToTalkSource) -> None:
@@ -278,6 +285,7 @@ class VoiceSession:
         self._recording = [] if was_playing else [self._mic.preroll()]
         self._purpose = Purpose.ANSWER if answering else Purpose.COMMAND
         self._mode = Mode.PTT
+        generation = self._stop_generation
         await self._state.transition(S.LISTENING)
 
         await ptt.wait_for_release(self._config.voice.max_utterance_s)
@@ -285,6 +293,9 @@ class VoiceSession:
         if opened_here:
             self._mic.stop()
         self._pump.mic_level(0.0)
+        if generation != self._stop_generation:
+            self._recording = []  # stopped while recording: never transcribe it
+            return
         await self._finish_recording()
 
     # -- listening with the VAD ----------------------------------------------------------
@@ -340,8 +351,19 @@ class VoiceSession:
 
         timer = Stopwatch()  # starts at the end of speech: that is what the user waits from
         await self._state.transition(S.THINKING)
+        generation = self._stop_generation
+        # A separate future so a stop can abandon the wait at once. Whisper itself can't be
+        # interrupted mid-pass; its result is simply dropped (and WhisperSTT serialises calls).
+        transcription = asyncio.ensure_future(asyncio.to_thread(self._stt.transcribe, audio))
+        self._stt_task = transcription
         try:
-            result = await asyncio.to_thread(self._stt.transcribe, audio)
+            result = await transcription
+        except asyncio.CancelledError:
+            current = asyncio.current_task()
+            if current is not None and current.cancelling():
+                raise  # the session itself is shutting down
+            logger.info("transcription discarded by stop")
+            return
         except Exception:
             logger.exception("transcription failed")
             if purpose is Purpose.ANSWER:
@@ -349,6 +371,11 @@ class VoiceSession:
             else:
                 await self._announce(self._config.messages.speech_unavailable)
             return
+        finally:
+            if self._stt_task is transcription:
+                self._stt_task = None
+        if generation != self._stop_generation:
+            return  # stopped while transcribing
         timer.mark("stt")
         self._log_transcription(result, audio.size / rate, timer)
         if self._mode is not Mode.BUSY and purpose is not Purpose.ANSWER:
@@ -458,13 +485,39 @@ class VoiceSession:
         logger.info("mute changed", extra={"muted": muted})
         self._pump.publish_soon(self.status())
 
-    async def interrupt(self) -> None:
-        """Stop whatever Jarvis is saying or doing (Esc in the HUD)."""
-        self._deliver_answer("")
+    async def interrupt(self) -> tuple[StopTarget, ...]:
+        """Stop everything Jarvis is doing: the HUD Stop button and Esc both end up here.
+
+        Speech is silenced first (the part you hear), then recording, transcription,
+        the Claude request and any running or queued tools are cancelled. Work that
+        can't be interrupted mid-call (a Whisper pass, an app launch already handed
+        to Windows) finishes in the background and its result is dropped. Jarvis then
+        waits for the wake word or push-to-talk again; mute is left as it was.
+        Returns what was actually stopped (empty when Jarvis was idle).
+        """
+        cancelled: list[StopTarget] = []
+        self._stop_generation += 1
+        if self._speaker.is_playing:
+            cancelled.append("speech")
+        await self._speaker.stop()
+        if self._mode in (Mode.LISTENING, Mode.PTT):
+            cancelled.append("listening")
+        self._recording = []
+        transcription, self._stt_task = self._stt_task, None
+        if transcription is not None and not transcription.done():
+            cancelled.append("transcription")
+            transcription.cancel()
+        if self._turn_running():
+            cancelled.append("reply")
+            if self._assistant is not None and self._assistant.tools_running:
+                cancelled.append("tools")
         await self._interrupt_turn()
-        if self._mode in (Mode.LISTENING, Mode.BUSY):
-            self._recording = []
+        self._deliver_answer("")
+        if self._mode in (Mode.LISTENING, Mode.PTT, Mode.BUSY):
             await self._go_idle()
+        elif self._muted and cancelled:
+            await self._enter_muted_state()  # a typed request ran while muted: stay muted
+        return tuple(cancelled)
 
     async def submit_text(self, text: str) -> None:
         """Typed input from the HUD: a new request, or the answer to a pending question."""

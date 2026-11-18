@@ -144,3 +144,41 @@ class WindowsLauncher:
         if resolved.suffix.lower() != ".lnk" or not inside_start_menu:
             raise LaunchError("that shortcut is not in the Start Menu")
         _startfile(str(resolved))
+
+
+class _PowerThrottlingState(ctypes.Structure):
+    _fields_: ClassVar[list[tuple[str, type[ctypes.c_ulong]]]] = [
+        ("Version", ctypes.c_ulong),
+        ("ControlMask", ctypes.c_ulong),
+        ("StateMask", ctypes.c_ulong),
+    ]
+
+
+_PROCESS_POWER_THROTTLING = 4  # PROCESS_INFORMATION_CLASS.ProcessPowerThrottling
+_POWER_THROTTLING_VERSION = 1
+_POWER_THROTTLING_EXECUTION_SPEED = 0x1
+
+
+def disable_power_throttling() -> bool:
+    """Opt this process out of EcoQoS execution-speed throttling (SetProcessInformation).
+
+    ControlMask selects the execution-speed policy; StateMask 0 turns it off. This
+    only affects this process, needs no privileges and lasts until it exits.
+    """
+    state = _PowerThrottlingState(_POWER_THROTTLING_VERSION, _POWER_THROTTLING_EXECUTION_SPEED, 0)
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.GetCurrentProcess.restype = ctypes.c_void_p
+    kernel32.SetProcessInformation.argtypes = [
+        ctypes.c_void_p,
+        ctypes.c_int,
+        ctypes.c_void_p,
+        ctypes.c_ulong,
+    ]
+    kernel32.SetProcessInformation.restype = ctypes.c_int
+    ok = kernel32.SetProcessInformation(
+        kernel32.GetCurrentProcess(),
+        _PROCESS_POWER_THROTTLING,
+        ctypes.byref(state),
+        ctypes.sizeof(state),
+    )
+    return bool(ok)

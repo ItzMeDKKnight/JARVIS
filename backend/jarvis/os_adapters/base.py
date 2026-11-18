@@ -102,6 +102,20 @@ def default_launcher() -> AppLauncher:
     return UnsupportedLauncher()
 
 
+def opt_out_of_power_throttling() -> bool:
+    """Ask the OS not to slow this process down as "background work". True if applied.
+
+    Windows 11 throttles windowless background processes (EcoQoS: lower clocks,
+    efficiency cores). Jarvis runs without a window under the HUD, and measured on
+    the target laptop, Whisper took ~3.2 s per command throttled vs ~2.4 s without.
+    """
+    if sys.platform == "win32":
+        from jarvis.os_adapters.windows import disable_power_throttling
+
+        return disable_power_throttling()
+    return False
+
+
 def default_key_state() -> KeyState:
     """Pick the keyboard reader for the current OS (push-to-talk is Windows-only for now)."""
     if sys.platform == "win32":

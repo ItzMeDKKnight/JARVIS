@@ -22,6 +22,7 @@ import json
 import logging
 import sys
 import threading
+import time
 
 from pydantic import BaseModel
 
@@ -46,6 +47,7 @@ from jarvis.events import (
     PttStop,
     Shutdown,
     StateChanged,
+    Stopped,
     TextInput,
     Transcript,
     UsageUpdate,
@@ -133,7 +135,7 @@ class Hud:
         elif isinstance(command, MuteToggle):
             await control.toggle_mute()
         elif isinstance(command, Interrupt):
-            await control.interrupt()
+            await self._stop(control)
         elif isinstance(command, PttStart):
             await control.ptt_start()
         elif isinstance(command, PttStop):
@@ -143,6 +145,19 @@ class Hud:
             self.shutdown.set()
         elif isinstance(command, MemoryList | MemoryDelete | MemoryForgetAll):
             await self._memory_command(command)
+
+    async def _stop(self, control: SessionControl) -> None:
+        """The one stop path (HUD Stop button and Esc): cancel, then tell the HUD what stopped."""
+        started = time.perf_counter()
+        cancelled = await control.interrupt()
+        await self._bus.publish(Stopped(cancelled=cancelled))
+        logger.info(
+            "stop handled",
+            extra={
+                "cancelled": list(cancelled),
+                "ms": round((time.perf_counter() - started) * 1000),
+            },
+        )
 
     async def _memory_command(self, command: MemoryList | MemoryDelete | MemoryForgetAll) -> None:
         if self._memory is not None:

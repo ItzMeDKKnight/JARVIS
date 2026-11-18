@@ -9,9 +9,10 @@ from collections.abc import Callable
 from pydantic import Field
 
 from jarvis.config import LocalizedText
-from jarvis.os_adapters.base import AppLauncher, LaunchError
+from jarvis.os_adapters.base import AppLauncher, BrowserOpener, LaunchError
 from jarvis.tools.app_catalog import AppCatalog
 from jarvis.tools.base import Tool, ToolContext, ToolInput, ToolOutcome
+from jarvis.tools.site_catalog import SiteCatalog
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +26,11 @@ class OpenAppInput(ToolInput):
 
 
 class OpenAppTool(Tool[OpenAppInput]):
-    """Opens apps from apps.yaml; anything else needs a Start Menu match plus a "yes"."""
+    """Opens apps from apps.yaml; anything else needs a Start Menu match plus a "yes".
+
+    "Open GitHub" often arrives here rather than at open_url, so a name that is not an
+    app but is a website listed in apps.yaml opens that site in the browser instead.
+    """
 
     name = "open_app"
     description = (
@@ -45,6 +50,8 @@ class OpenAppTool(Tool[OpenAppInput]):
         confirm_timeout_s: float,
         search_start_menu: bool,
         confirm_question: LocalizedText,
+        sites: SiteCatalog | None = None,
+        browser: BrowserOpener | None = None,
     ) -> None:
         self._catalog = catalog
         self._launcher = launcher
@@ -52,11 +59,16 @@ class OpenAppTool(Tool[OpenAppInput]):
         self._confirm_timeout_s = confirm_timeout_s
         self._search_start_menu = search_start_menu
         self._confirm_question = confirm_question
+        self._sites = sites if browser is not None else None
+        self._browser = browser
 
     def narration_target(self, args: OpenAppInput) -> str | None:
         app = self._catalog.resolve(args.app_name)
+        if app is not None:
+            return app.display_name
+        site = self._sites.resolve(args.app_name) if self._sites is not None else None
         # Unknown apps get a confirmation question instead of "Opening ...".
-        return app.display_name if app is not None else None
+        return site.display_name if site is not None else None
 
     async def run(self, args: OpenAppInput, ctx: ToolContext) -> ToolOutcome:
         app = self._catalog.resolve(args.app_name)
@@ -64,6 +76,10 @@ class OpenAppTool(Tool[OpenAppInput]):
             return await self._launch_known(
                 app.display_name, lambda: self._launcher.launch(app.launch)
             )
+        site = self._sites.resolve(args.app_name) if self._sites is not None else None
+        if site is not None and self._browser is not None:
+            browser = self._browser
+            return await self._launch_known(site.display_name, lambda: browser.open(site.url))
         if not self._search_start_menu:
             return _not_found(args.app_name)
         return await self._launch_unknown(args.app_name, ctx)

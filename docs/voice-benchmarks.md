@@ -138,3 +138,67 @@ that's an assumption, not measured. Loading the speech models adds about 6.4 s
 the time until Jarvis is ready. Options, not applied: load the speech models in parallel
 with the SDK import, or exclude the `.venv` folder from real-time scanning (a security
 tradeoff for you to decide).
+
+## Response latency, 2026-11-18 (before / after the latency pass)
+
+**How it was measured.** 50 real voice turns from the HUD on 2026-10-19 (from `jarvis.log`)
+gave the starting picture. Median from the end of speech:
+
+| Stage | Median | Note |
+| --- | --- | --- |
+| End-of-speech window (`vad.end_silence_ms`) | 800 ms | before the timer starts |
+| Transcription (Whisper small) | **2,525 ms** | 1.36 s in the Phase 2 benchmark |
+| Claude, first token after transcription | 1,482 ms | Haiku 5.5; tool rounds 1,704 ms |
+| First audio after the first token | 860 ms | first sentence streamed + Kokoro + device buffer |
+| **End of speech → first audio** | **5,087 ms** | + 0.8 s window |
+
+The biggest stage, transcription, ran almost twice as slow live as in the benchmark. The
+cause, measured: **Windows power throttling (EcoQoS)**. The backend runs without a window
+under the HUD, so Windows treats it as background work and slows it down. Same
+process, same audio (Kokoro speech, 4 sentences × 2, on battery):
+
+| Throttling | Whisper median |
+| --- | --- |
+| Windows default | 3,192 ms |
+| forced on | 3,210 ms |
+| **opted out** (`SetProcessInformation`, now done at voice start-up) | **2,376 ms** |
+
+Thread count with throttling off: 4 → 2,704 ms, 6 → 2,423, **8 → 2,356** (kept), 10 →
+2,411, 12 → 2,339. No gain from changing it.
+
+**End to end, real models and real Claude calls, before vs after**
+(`build/scratch/e2e_latency.py`): Kokoro speech → Whisper → Claude Haiku 5.5 → tools (app
+launch faked) → Kokoro → device buffer. Medians of 3 runs per case, both arms interleaved
+in one process, on battery. "Before" = Windows' default throttling, `output_latency: high`,
+no phrase cache; "after" = this change. Times in ms from the end of speech. Two runs, because
+battery runs are noisy:
+
+| Case | Stage | Run 1 before | Run 1 after | Run 2 before | Run 2 after (+ phrase cache) |
+| --- | --- | --- | --- | --- | --- |
+| "Open calculator" | transcribed | 3,076 | 2,243 | 4,274 | 2,429 |
+| | **app launched** | **3,979** | **3,116** | **5,501** | **3,334** |
+| | "Opening Calculator." heard | 5,159 | 3,830 | 7,209 | **3,434** |
+| Spoken question (en) | transcribed | 3,159 | 2,353 | 3,789 | 2,591 |
+| | Claude first token | 3,797 | 3,015 | 5,046 | 3,278 |
+| | **first word heard** | **5,515** | **4,321** | **6,994** | **4,829** |
+| Hindi question | transcribed | 3,477 | 2,636 | 4,294 | 3,307 |
+| | first word heard | 5,924 | 4,522 | 6,411 | 5,266 |
+
+Run 1 had no phrase cache in either arm. In run 2 the "after" arm has it, so the narration
+plays the moment the app launches. Claude's own time to first token was 0.6–0.9 s after the
+transcript in both arms (unchanged, as expected). The transcripts were identical in both
+arms, Hindi included (Whisper small's usual "बारत … राजदानी"), so accuracy is unaffected.
+Kokoro alone barely changes with throttling (854 vs 895 ms median per sentence).
+
+All of these come on top of the 0.8 s end-of-speech window, which was left unchanged: it
+can't be tuned safely without recordings of your own pauses (Hindi speakers often pause
+longer mid-sentence). Try 600–650 ms if replies feel slow to start and you aren't cut off.
+
+**Already in place, so not changed:** streaming from Claude with sentence-by-sentence
+speech (the first piece may end at a comma after 25 characters); tool narration queued the
+moment a tool starts, with the tool running in parallel (the action doesn't wait for the
+narration); models loaded once and kept in memory.
+
+**Stop:** `AudioPlayer.stop()` measured at 12 ms median (17 ms max) on the real output
+device, including discarding the device buffer. Before this change, a stop left up to
+`stream.latency` (200 ms) of already-buffered speech playing.

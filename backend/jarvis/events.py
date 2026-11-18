@@ -151,6 +151,19 @@ class MemorySnapshot(_Message):
     summary: str | None
 
 
+StopTarget = Literal["listening", "transcription", "reply", "speech", "tools"]
+
+
+class Stopped(_Message):
+    """Acknowledges a stop (HUD Stop button or Esc): what was actually cancelled.
+
+    Empty ``cancelled`` means Jarvis was already idle and nothing changed.
+    """
+
+    type: Literal["stopped"] = "stopped"
+    cancelled: tuple[StopTarget, ...]
+
+
 BackendEvent = Annotated[
     StateChanged
     | AudioLevel
@@ -162,7 +175,8 @@ BackendEvent = Annotated[
     | ErrorEvent
     | Status
     | UsageUpdate
-    | MemorySnapshot,
+    | MemorySnapshot
+    | Stopped,
     Field(discriminator="type"),
 ]
 
@@ -177,6 +191,8 @@ class MuteToggle(_Message):
 
 
 class Interrupt(_Message):
+    """Stop everything Jarvis is doing right now (HUD Stop button and Esc both send this)."""
+
     type: Literal["interrupt"] = "interrupt"
 
 

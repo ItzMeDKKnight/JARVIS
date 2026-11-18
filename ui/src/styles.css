@@ -1,17 +1,19 @@
 /* J.A.R.V.I.S. HUD: dark, translucent panels around the reactor. Fonts are bundled locally. */
 
 :root {
-  --bg: #03070c;
-  --panel: rgba(8, 20, 30, 0.62);
-  --panel-strong: rgba(10, 26, 38, 0.86);
-  --line: rgba(120, 220, 255, 0.18);
-  --line-strong: rgba(120, 220, 255, 0.45);
-  --text: #cfeaf5;
-  --text-dim: #7fa3b3;
-  --accent: #6ff2ff;
-  --accent-soft: rgba(111, 242, 255, 0.14);
-  --warn: #ffb547;
-  --danger: #ff6a4d;
+  /* Matches the lens HUD: blue = listening / you, orange = speaking / Jarvis, red = error. */
+  --bg: #02040a;
+  --panel: rgba(4, 14, 26, 0.62);
+  --panel-strong: rgba(6, 18, 34, 0.86);
+  --line: rgba(0, 229, 255, 0.16);
+  --line-strong: rgba(0, 229, 255, 0.42);
+  --text: #d6f4fb;
+  --text-dim: #7c9fb2;
+  --accent: #00e5ff;
+  --accent-soft: rgba(0, 229, 255, 0.12);
+  --accent-warm: #ff9a2e;
+  --warn: #ff9a2e;
+  --danger: #ff2a2a;
   --ui-font: 'Rajdhani', 'Noto Sans Devanagari', system-ui, sans-serif;
   --mono-font: 'JetBrains Mono', 'Noto Sans Devanagari', ui-monospace, monospace;
   --drawer-width: clamp(300px, 30vw, 460px);
@@ -217,12 +219,59 @@ summary:focus-visible {
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--warn);
-  border: 1px solid rgba(255, 181, 71, 0.4);
+  border: 1px solid rgba(255, 154, 46, 0.4);
   background: rgba(30, 20, 5, 0.6);
   border-radius: 3px;
   display: flex;
   gap: 8px;
   align-items: center;
+}
+
+/* Stop: always visible on the stage, red while there is something to stop. */
+.stop-button {
+  position: absolute;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 18px;
+  font-family: var(--mono-font);
+  font-size: 12px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  background: rgba(4, 14, 26, 0.7);
+  border-color: var(--line-strong);
+  z-index: 2;
+}
+
+.stop-button[data-active='true'] {
+  color: #ffd6d6;
+  border-color: rgba(255, 42, 42, 0.75);
+  background: rgba(60, 14, 10, 0.75);
+}
+
+.stop-button:hover,
+.stop-button[data-active='true']:hover {
+  border-color: var(--danger);
+  background: rgba(90, 20, 14, 0.85);
+}
+
+.stop-button[data-flash='true'] {
+  color: #fff;
+  border-color: var(--danger);
+  background: rgba(255, 42, 42, 0.55);
+}
+
+.glyph.stop {
+  background: currentColor;
+  border-radius: 1px;
+}
+
+.muted-badge {
+  bottom: 60px;
 }
 
 .banner {
@@ -232,9 +281,9 @@ summary:focus-visible {
   transform: translateX(-50%);
   max-width: min(80%, 640px);
   padding: 8px 16px;
-  border: 1px solid rgba(255, 106, 77, 0.45);
+  border: 1px solid rgba(255, 42, 42, 0.45);
   background: rgba(40, 10, 8, 0.75);
-  color: #ffd2c8;
+  color: #ffd6d6;
   border-radius: 4px;
   font-size: 14px;
   text-align: center;
@@ -388,7 +437,7 @@ summary:focus-visible {
 
 /* highlight.js theme, matched to the HUD */
 .hljs { color: #d6eef7; }
-.hljs-keyword, .hljs-selector-tag, .hljs-built_in { color: #6ff2ff; }
+.hljs-keyword, .hljs-selector-tag, .hljs-built_in { color: #00e5ff; }
 .hljs-string, .hljs-attr, .hljs-template-string { color: #9be89b; }
 .hljs-number, .hljs-literal { color: #ffb547; }
 .hljs-comment, .hljs-quote { color: #5f7f8c; font-style: italic; }
@@ -488,7 +537,7 @@ summary:focus-visible {
 .fact .delete:hover {
   color: var(--danger);
   border-color: var(--danger);
-  background: rgba(255, 106, 77, 0.12);
+  background: rgba(255, 42, 42, 0.12);
 }
 
 .forget-all {
@@ -496,11 +545,11 @@ summary:focus-visible {
   width: 100%;
   padding: 6px;
   color: var(--danger);
-  border-color: rgba(255, 106, 77, 0.35);
+  border-color: rgba(255, 42, 42, 0.35);
 }
 
 .forget-all.armed {
-  background: rgba(255, 106, 77, 0.2);
+  background: rgba(255, 42, 42, 0.2);
   border-color: var(--danger);
   color: #ffe0d8;
 }
@@ -559,6 +608,10 @@ summary:focus-visible {
 }
 
 .line.assistant .who {
+  color: var(--accent-warm);
+}
+
+.line.user .who {
   color: var(--accent);
 }
 
@@ -619,13 +672,17 @@ summary:focus-visible {
   font-family: var(--mono-font);
   font-size: 11px;
   color: var(--text-dim);
-  background: rgba(3, 9, 14, 0.9);
+  background: rgba(2, 6, 14, 0.9);
 }
 
 .statusbar [data-status='state'] {
   color: var(--accent);
   text-transform: uppercase;
   letter-spacing: 0.12em;
+}
+
+.statusbar [data-value='speaking'] {
+  color: var(--accent-warm);
 }
 
 .statusbar [data-value='error'] {
@@ -684,6 +741,15 @@ body.compact .compact-line {
 body.compact .badge {
   bottom: auto;
   top: 8px;
+}
+
+body.compact .stop-button {
+  left: auto;
+  right: 8px;
+  bottom: auto;
+  top: 8px;
+  transform: none;
+  padding: 4px 10px;
 }
 
 /* -- reduced motion ------------------------------------------------------------------------------ */

@@ -27,8 +27,9 @@ from pathlib import Path
 import anthropic
 
 from jarvis.assistant import Assistant
-from jarvis.config import ConfigError, JarvisConfig, load_api_key, load_config
+from jarvis.config import REPO_ROOT, ConfigError, JarvisConfig, load_api_key, load_config
 from jarvis.cost import CostTracker
+from jarvis.documents.pdf_writer import FpdfWriter
 from jarvis.events import EventBus
 from jarvis.hud_app import HudTokenError, read_token, run_hud
 from jarvis.llm.client import AnthropicLLMClient, create_async_client
@@ -136,12 +137,15 @@ async def _amain(
     cost = CostTracker(config.pricing, config.budget)
     try:
         async with _memory_service(config, sdk_client, bus, cost) as memory:
+            search = AnthropicWebSearch(sdk_client, config.search, cost)
             registry = build_default_registry(
                 config,
                 launcher=default_launcher(),
                 browser=DefaultBrowserOpener(),
-                search=AnthropicWebSearch(sdk_client, config.search, cost),
+                search=search,
                 memory=memory,
+                videos=search,
+                pdf=FpdfWriter(config.pdf, REPO_ROOT),
             )
             llm = AnthropicLLMClient(sdk_client)
             if hud_token is not None:

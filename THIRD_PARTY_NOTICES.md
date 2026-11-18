@@ -33,7 +33,8 @@ package (MIT). Silero VAD is MIT-licensed (https://github.com/snakers4/silero-va
 ## Other dependencies
 
 Installed through pip, not vendored. Their licenses, including the GPL-3.0
-ones (phonemizer, espeak-ng, the FFmpeg build in PyAV, optional piper-tts),
+ones (phonemizer, espeak-ng, the FFmpeg build in PyAV, optional piper-tts) and
+the LGPL-3.0 fpdf2 used for PDFs,
 are listed in [PRIVACY.md](PRIVACY.md#dependencies-and-their-network-behaviour).
 
 ## HUD: bundled into `ui/dist` by the build

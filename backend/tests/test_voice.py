@@ -8,6 +8,7 @@ decisions are made by the real Endpointer with the real config timings.
 from __future__ import annotations
 
 import asyncio
+from typing import Any
 
 import numpy as np
 import pytest
@@ -129,6 +130,25 @@ async def test_stop_drops_queued_speech(config: JarvisConfig) -> None:
     assert sink.stopped == 1
 
 
+async def test_fixed_lines_are_synthesised_once_then_replayed(config: JarvisConfig) -> None:
+    engine, sink = FakeEngine(), FakeSink()
+    postfx = config.tts.postfx.model_copy(update={"enabled": False})
+    speaker = VoiceSpeaker(
+        engine, sink, segmenter=config.tts.segmenter, postfx=postfx, phrase_cache_size=2
+    )
+    speaker.start()
+
+    for line in ["Opening Calculator.", "Opening Calculator.", "कैलकुलेटर खोल रहा हूँ।"]:
+        await speaker.say(line, "en")
+    await speaker.feed("Opening Calculator. ", "en")  # streamed replies are never cached
+    await speaker.end_utterance()
+    await speaker.drain()
+    await speaker.close()
+
+    assert [text for _, text in engine.calls].count("Opening Calculator.") == 2  # say once + feed
+    assert len(sink.played) == 4  # every line was still heard
+
+
 def test_interrupted_tool_call_gets_a_result() -> None:
     history = ConversationHistory(max_turns=5)
     history.add_user_text("open vs code")
@@ -228,6 +248,8 @@ class Rig:
         *,
         hands_free: bool = True,
         launcher: FakeLauncher | None = None,
+        llm: Any = None,
+        search: Any = None,
     ) -> None:
         self.config = config
         self.bus = EventBus()
@@ -236,7 +258,7 @@ class Rig:
         self.state = StateMachine(self.bus)
         self.engine, self.sink = FakeEngine(), FakeSink()
         self.speaker = _speaker(config, self.engine, self.sink)
-        self.llm = FakeLLMClient(turns)
+        self.llm = llm if llm is not None else FakeLLMClient(turns)
         self.stt = stt
         self.clock = Clock()
         self.wake = FakeWake() if hands_free else None
@@ -244,7 +266,7 @@ class Rig:
             config,
             launcher=launcher or FakeLauncher(),
             browser=FakeBrowser(),
-            search=FakeSearch(SearchResult(summary="ok", sources=())),
+            search=search or FakeSearch(SearchResult(summary="ok", sources=())),
         )
         confirmer = VoiceConfirmer()
         self.session = VoiceSession(

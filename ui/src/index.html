@@ -25,6 +25,9 @@
 
       <main class="stage" id="stage">
         <canvas id="reactor" aria-label="Arc reactor showing what Jarvis is doing"></canvas>
+        <button type="button" class="stop-button" id="btn-stop" data-active="false" title="Stop everything Jarvis is doing (Esc)" aria-label="Stop Jarvis">
+          <span class="glyph stop"></span><span class="label">Stop</span>
+        </button>
         <div class="badge muted-badge" id="muted-badge" hidden>
           <span class="glyph mic-off"></span> Microphone muted
         </div>

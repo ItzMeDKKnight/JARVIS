@@ -1,11 +1,21 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from jarvis.config import JarvisConfig
+from jarvis.documents.pdf_writer import FpdfWriter
 from jarvis.events import EventBus, ToolFinished, ToolStarted
 from jarvis.search.base import SearchResult
 from jarvis.tools.base import ToolContext
 from jarvis.tools.registry import ToolRegistry, build_default_registry
-from tests.fakes import EventRecorder, FakeBrowser, FakeConfirmer, FakeLauncher, FakeSearch
+from tests.fakes import (
+    EventRecorder,
+    FakeBrowser,
+    FakeConfirmer,
+    FakeLauncher,
+    FakeSearch,
+    FakeVideoFinder,
+)
 
 
 def _registry(config: JarvisConfig, search: FakeSearch | None = None) -> ToolRegistry:
@@ -21,7 +31,18 @@ def test_definitions_are_sorted_and_strict(config: JarvisConfig) -> None:
     definitions = _registry(config).definitions()
     names = [d["name"] for d in definitions]
     assert names == sorted(names) == ["open_app", "open_url", "show_code", "web_search"]
-    for definition in definitions:
+    full = build_default_registry(
+        config,
+        launcher=FakeLauncher(),
+        browser=FakeBrowser(),
+        search=FakeSearch(),
+        videos=FakeVideoFinder(),
+        pdf=FpdfWriter(config.pdf, Path("unused")),
+    ).definitions()
+    full_names = [d["name"] for d in full]
+    assert full_names == sorted(full_names)
+    assert {"create_pdf", "play_youtube"} <= set(full_names)
+    for definition in [*definitions, *full]:
         schema = definition["input_schema"]
         assert schema["type"] == "object"
         assert schema["additionalProperties"] is False

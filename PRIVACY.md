@@ -23,7 +23,7 @@ model downloader.
 | # | Where in the code | Destination | When | What is sent |
 | --- | --- | --- | --- | --- |
 | 1 | `jarvis/llm/client.py` (conversation) | `api.anthropic.com` | every request you make | the system prompt (`config/persona.md` with your first name), tool definitions, the conversation so far (up to `llm.history_max_turns` turns), **memory notes relevant to this request**, **your local date and time with its UTC offset** (`llm.time_note`, so Claude can answer "what's the date"; turn it off in config.yaml), tool results |
-| 2 | `jarvis/search/anthropic_search.py` (web search) | `api.anthropic.com` | when Jarvis searches | the search query only. Anthropic runs the search with a third-party search provider; no search key or SDK is used locally. `search.user_location` only if you set it (off by default). |
+| 2 | `jarvis/search/anthropic_search.py` (web search, and finding a YouTube video for `play_youtube`) | `api.anthropic.com` | when Jarvis searches, or when you ask it to play something on YouTube | the search query only. Anthropic runs the search with a third-party search provider; no search key or SDK is used locally. YouTube lookups are one search restricted to youtube.com; Jarvis never contacts YouTube itself. `search.user_location` only if you set it (off by default). |
 | 3 | `jarvis/memory/summary.py` (memory consolidation) | `api.anthropic.com` | in the background every `memory.consolidate_every_turns` requests (default 6), when the conversation pauses, and on exit | the text of recent turns **with sensitive sentences already removed**, the current rolling summary, and the list of stored facts, so Claude can update the summary and spot new or outdated facts |
 | 4 | `scripts/download_models.py` (setup only) | `huggingface.co`, `github.com` (pinned URLs in `config/models.yaml`) | only when you run it | an ordinary HTTPS download request; nothing about you |
 
@@ -35,7 +35,11 @@ calls (type 1) with fixed test sentences.
 
 Things that look like network activity but are not Jarvis's:
 - `open_url` hands an http/https address to your **default browser** (`webbrowser`). The
-  browser then loads the page, as if you had clicked a link.
+  browser then loads the page, as if you had clicked a link. Sites opened by name come from
+  the `websites:` list in `config/apps.yaml`. `play_youtube` does the same with a
+  `https://www.youtube.com/watch?v=<id>` address rebuilt from the video ID alone.
+- `create_pdf` writes files into the project's `Outputs` folder; fpdf2 can load remote
+  images, but Jarvis only ever places text, so no request is made.
 - `open_app` starts local programs with `os.startfile` (Windows ShellExecute). It never runs
   shell commands.
 - Installing the Python packages with pip downloads them from PyPI once. That's pip, at setup.
@@ -66,6 +70,7 @@ Everything is under `%LOCALAPPDATA%\Jarvis` (or `paths.data_dir`). Jarvis refuse
 | HUD data | `%LOCALAPPDATA%\Jarvis\hud\` | window settings and Chromium cache; no conversation text |
 | API key | `.env` in the repo folder (git-ignored), or an environment variable | your key |
 | Speech models | `models\` in the repo folder (git-ignored) | Whisper, Kokoro, Piper and wake-word model files; no personal data |
+| PDFs you asked for | `Outputs\` (or `Outputs_Jarvis\`) in the repo folder (git-ignored) | the documents themselves; delete them whenever you like |
 
 The current conversation (the last `llm.history_max_turns` turns) is held **in memory only**
 and is gone when Jarvis exits. What carries over between sessions is only what is in
@@ -204,6 +209,9 @@ added `websockets` and the HUD's npm packages.
 | `python-dotenv` 1.2.4 | BSD-3-Clause | none |
 | `sqlite3` (Python standard library) | PSF / public domain (SQLite) | none; a local file |
 | `websockets` 17.2 | BSD-3-Clause | a **server** bound to 127.0.0.1 for the HUD; makes no outbound connections |
+| `fpdf2` 2.9.0 (added 2026-11-18, for `create_pdf`) | **LGPL-3.0-only** | can fetch remote images when asked (`image()` with a URL, `write_html` `<img>`); Jarvis never calls either, it only places text. No other network code. |
+| `uharfbuzz` 0.57.0 (HarfBuzz text shaping for Devanagari) | Apache-2.0 (HarfBuzz: MIT) | none |
+| `fonttools` 4.68.0, `Pillow` 13.0.0 (via fpdf2) | MIT / MIT-CMU | none |
 | `faster-whisper` 1.2.1 | MIT | none at runtime with a local model folder. Its `download_model` helper (Hugging Face Hub) is never called. |
 | `ctranslate2` (Whisper inference) | MIT | none |
 | `huggingface_hub`, `hf-xet`, `fsspec`, `filelock`, `tqdm`, `colorama`, `click`, `packaging` (via faster-whisper / onnxruntime) | Apache-2.0 / BSD / MIT | **network only if asked to download**. Jarvis never asks, and forces offline mode. |
@@ -248,7 +256,7 @@ once, at setup.
 
 Jarvis's own code is MIT. Several dependencies it *installs* are GPL-3.0: `phonemizer`,
 espeak-ng inside `espeakng-loader`, the FFmpeg build inside PyAV, and the optional
-`piper-tts`. Users install these themselves through pip and the repository doesn't contain
+`piper-tts`; `fpdf2` is LGPL-3.0 (used unmodified, as a separate library). Users install these themselves through pip and the repository doesn't contain
 them, so publishing the source under MIT is fine. Any future **bundled installer**
 (Phase 5) that ships these binaries must follow GPL-3.0 for those parts: provide their source
 and license texts. The `hey_jarvis` wake-word model is CC BY-NC-SA 4.0, so a release that

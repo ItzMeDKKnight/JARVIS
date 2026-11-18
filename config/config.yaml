@@ -46,6 +46,14 @@ llm:
       effort: medium
       thinking: adaptive
       fallbacks: default
+    # "Make a PDF about ...": the whole document is written inside one tool call, so it
+    # needs far more output room than a spoken reply (routine's 1024 would cut it off).
+    document:
+      model: claude-sonnet-5-5
+      max_tokens: 8000
+      effort: low
+      thinking: between_tools
+      fallbacks: default
 
   # Keyword router: decides the route per user turn without an extra API call.
   # The first rule with a matching keyword wins; otherwise default_route is used.
@@ -54,6 +62,11 @@ llm:
   router:
     default_route: routine
     rules:
+      - route: document
+        keywords:
+          - pdf
+          - pdfs
+          - पीडीएफ
       - route: coding
         ignore_phrases:
           - vs code
@@ -116,6 +129,18 @@ tools:
   # How long to wait for a yes/no answer before treating it as "no".
   confirm_timeout_s: 30
 
+# create_pdf: PDFs you ask for ("make a PDF about the solar system").
+pdf:
+  # Saved in this folder in the project root (git-ignored). If something with this name
+  # already exists that Jarvis didn't create, it is left alone and fallback_dir_name is used.
+  output_dir_name: Outputs
+  fallback_dir_name: Outputs_Jarvis
+  # Must cover Devanagari. Nirmala UI ships with Windows (regular = face 0, bold = face 1).
+  font_file: "%WINDIR%/Fonts/Nirmala.ttc"
+  font_index_regular: 0
+  font_index_bold: 1
+  max_content_chars: 60000
+
 # Lines spoken (or printed) the moment a tool starts, so Jarvis never goes
 # silent during a slow action. {target} is filled in by the tool.
 narration:
@@ -131,6 +156,12 @@ narration:
   show_code:
     en: "Putting the code on your screen."
     hi: "कोड आपकी स्क्रीन पर दिखा रहा हूँ।"
+  play_youtube:
+    en: "Finding that on YouTube."
+    hi: "यूट्यूब पर ढूँढ रहा हूँ।"
+  create_pdf:
+    en: "Saving that as a PDF."
+    hi: "इसे पीडीएफ़ में सेव कर रहा हूँ।"
 
 # Fixed lines for failures, so the user always hears something sensible.
 messages:
@@ -259,6 +290,9 @@ audio:
   block_ms: 32                 # mic block size; also the level-meter rate (~31 Hz)
   level_floor_db: -60          # mic/TTS level meter: this maps to 0.0 ...
   level_ceiling_db: -10        # ... and this to 1.0
+  # Speaker buffer. "low" (~100 ms on Windows MME) lets each reply start ~100 ms sooner
+  # than "high" (~200 ms). Set "high" if playback ever crackles.
+  output_latency: low
   # Off by default. When true, each recorded utterance is written as a WAV file
   # to <data_dir>\debug-audio\ for troubleshooting. Never inside the repo.
   debug_save_audio: false
@@ -339,6 +373,9 @@ tts:
     reverb_decay_s: 0.22
     doubling_delay_ms: 14
     doubling_gain_db: -14
+  # Fixed lines (narration such as "Opening Calculator.", the greeting) are synthesised once
+  # and replayed from memory afterwards: ~0.6 s sooner on repeats. Same voice, same audio.
+  phrase_cache_size: 64
   # How streamed text is cut into pieces for speech. The first piece may end at a
   # comma once it is this long, so the first audio starts sooner.
   segmenter:

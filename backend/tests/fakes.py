@@ -11,7 +11,7 @@ from pydantic import BaseModel
 from jarvis.config import LaunchSpec
 from jarvis.llm.types import LLMError, LLMRequest, LLMResponse, TextCallback, ToolCall, Usage
 from jarvis.os_adapters.base import LaunchError, Shortcut
-from jarvis.search.base import SearchError, SearchResult
+from jarvis.search.base import SearchError, SearchResult, SearchSource
 
 
 @dataclass
@@ -115,6 +115,21 @@ class FakeSearch:
             raise SearchError(self._error)
         assert self._result is not None
         return self._result
+
+
+class FakeVideoFinder:
+    """Returns scripted YouTube pages (or raises) and records each query."""
+
+    def __init__(self, sources: tuple[SearchSource, ...] = (), error: str | None = None) -> None:
+        self._sources = sources
+        self._error = error
+        self.queries: list[str] = []
+
+    async def find_videos(self, query: str) -> tuple[SearchSource, ...]:
+        self.queries.append(query)
+        if self._error is not None:
+            raise SearchError(self._error)
+        return self._sources
 
 
 class EventRecorder:

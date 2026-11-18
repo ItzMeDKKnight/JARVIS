@@ -1,10 +1,17 @@
-// Three.js scene for the arc reactor: layered shader planes (for parallax depth), aura,
-// HUD rings and particles, then bloom and a final pass (shimmer, scanlines, flicker).
+// Three.js scene for the holographic lens HUD: concentric ring layers at different depths
+// (true parallax), each rotating at its own speed and some tilted a few degrees, a glowing
+// iris core, lens-flare hot spots, and an outer layer of spokes, blocks, unreadable readouts,
+// particles and line fragments drifting outward. Then bloom and a final pass (chromatic
+// softness, tone curve, error flicker, vignette). All geometry is generated in geometry.js;
+// all tunables live in states.js.
 //
-// Performance: renders at ~20 fps in calm states and 60 fps when active, stops entirely
-// while the window is hidden, and caps the pixel ratio at 2. Calm states wake on a timer
-// instead of requestAnimationFrame: a live rAF loop keeps Chromium's whole compositor
-// pipeline (browser, GPU and renderer processes) ticking at 60 Hz even when nothing is drawn.
+// Inputs (unchanged from the arc reactor it replaces): setState(name) with the visual state,
+// setLevel('mic' | 'tts', level), setFit(fraction), setReducedMotion(bool).
+//
+// Performance: one draw call per layer, additive blending with no depth buffer work, the
+// pixel ratio capped at 2, calm states rendered at ~30 fps on a timer (a live rAF loop keeps
+// Chromium's whole compositor ticking at 60 Hz), nothing at all while the window is hidden,
+// fewer layers and particles in the compact window, and everything disposed on rebuild.
 
 import * as THREE from 'three';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
@@ -12,86 +19,95 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 
-import auraFrag from './shaders/aura.frag?raw';
+import { GENERATORS, flares as flareQuads, fragments, particles, random, scaledSpec } from './geometry.js';
 import commonGlsl from './shaders/common.glsl?raw';
+import driftFrag from './shaders/drift.frag?raw';
+import driftVert from './shaders/drift.vert?raw';
 import finalFrag from './shaders/final.frag?raw';
+import glowFrag from './shaders/glow.frag?raw';
+import glowVert from './shaders/glow.vert?raw';
 import hudFrag from './shaders/hud.frag?raw';
-import particlesFrag from './shaders/particles.frag?raw';
-import particlesVert from './shaders/particles.vert?raw';
+import hudVert from './shaders/hud.vert?raw';
+import paletteGlsl from './shaders/palette.glsl?raw';
 import quadVert from './shaders/quad.vert?raw';
-import reactorFrag from './shaders/reactor.frag?raw';
-import {
-  LevelEnvelope,
-  MOTION,
-  STATE_PARAMS,
-  THEME,
-  easeAmount,
-  easeParams,
-} from './states.js';
+import { LAYERS, LevelEnvelope, MOTION, PALETTES, STATE_PARAMS, THEME, easeAmount, easeParams, fadeAmount } from './states.js';
 
-const FOV_DEG = 30;
-const REACTOR_PLANE = 2.2; // reactor layers span [-1.1, 1.1] reactor units
-const AURA_PLANE = 6.0;
-const HUD_PLANE = 5.0;
-const PARTICLE_COUNT = 260;
 const CALM_STATES = new Set(['idle', 'muted', 'offline']);
-const CALM_FRAME_MS = 50; // ~20 fps in calm states
-const STATE_EASE_PER_SECOND = 0.985; // ~95% of the way in under a second
-const PARALLAX_MAX_RAD = 0.14;
+const FRAG_PREFIX = `${commonGlsl}\n${paletteGlsl}\n`;
+const DEG = Math.PI / 180;
 
-const LAYERS = [
-  { layer: 0, z: 0.0 }, // housing
-  { layer: 1, z: 0.035 }, // coils
-  { layer: 2, z: 0.06 }, // light
-  { layer: 3, z: 0.11, additive: true }, // glass
-];
-
-function vec3(rgb) {
-  return new THREE.Vector3(rgb[0], rgb[1], rgb[2]);
+function paletteUniform(palette) {
+  return { value: [palette.core, palette.mid, palette.edge].map((c) => new THREE.Vector3(...c)) };
 }
 
-function material(fragment, uniforms, { additive = false } = {}) {
-  return new THREE.ShaderMaterial({
-    vertexShader: quadVert,
-    fragmentShader: `${commonGlsl}\n${fragment}`,
-    uniforms,
-    transparent: true,
-    depthWrite: false,
-    depthTest: false,
-    blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending,
-  });
+function toGeometry(data) {
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.BufferAttribute(data.positions, 3));
+  if (data.edge) geometry.setAttribute('aEdge', new THREE.BufferAttribute(data.edge, 1));
+  if (data.uv) geometry.setAttribute('aUv', new THREE.BufferAttribute(data.uv, 2));
+  if (data.seed) {
+    geometry.setAttribute('aSeed', new THREE.BufferAttribute(data.seed, 1));
+    geometry.setAttribute('aOffset', new THREE.BufferAttribute(data.offset, 1));
+  }
+  return geometry;
 }
 
 export class Hologram {
   /** @param {HTMLCanvasElement} canvas */
-  constructor(canvas, { theme = THEME, reducedMotion = false } = {}) {
+  constructor(canvas, { theme = THEME, layers = LAYERS, reducedMotion = false } = {}) {
     this.canvas = canvas;
     this.theme = theme;
+    this.layerSpecs = layers;
     this.motion = reducedMotion ? MOTION.reduced : MOTION.normal;
     this.stateName = 'offline';
     this.params = { ...STATE_PARAMS.offline };
     this.levels = { mic: 0, tts: 0 };
     this.envelope = new LevelEnvelope();
     this.mouse = new THREE.Vector2();
+    this.look = new THREE.Vector2();
     this.fit = 0.6;
+    this.compact = null;
     this.timer = new THREE.Timer();
     this.time = 0;
+    this.phases = { chase: 0, drift: 0, wave: 0 };
     this.rafHandle = null;
     this.timeoutHandle = null;
     this.running = false;
+    this.layers = [];
 
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'low-power' });
-    this.renderer.setClearColor(0x03070c, 1);
+    this.renderer.setClearColor(new THREE.Color(theme.background), 1);
     this.renderer.toneMapping = THREE.NoToneMapping;
     this.scene = new THREE.Scene();
-    this.camera = new THREE.PerspectiveCamera(FOV_DEG, 1, 0.1, 100);
-    this.group = new THREE.Group();
-    this.scene.add(this.group);
+    this.camera = new THREE.PerspectiveCamera(theme.camera.fovDeg, 1, 0.05, 100);
+    this.root = new THREE.Group();
+    this.scene.add(this.root);
 
-    this.buildReactor();
-    this.buildSurroundings();
+    // Shared by every HUD material (same objects, so one update reaches all of them).
+    this.shared = {
+      uBlue: paletteUniform(PALETTES.blue),
+      uOrange: paletteUniform(PALETTES.orange),
+      uRed: paletteUniform(PALETTES.red),
+      uOrangeMix: { value: 0 },
+      uTwoTone: { value: 0 },
+      uAccentAngle: { value: theme.accentAngle },
+      uChase: { value: 0 },
+      uChaseSegments: { value: theme.chaseSegments },
+      uChasePhase: { value: 0 },
+      uError: { value: 0 },
+      uSaturation: { value: 1 },
+      uGradientRadius: { value: theme.gradientRadius },
+      uGradientMid: { value: theme.gradientMid },
+      uIntensity: { value: 0 },
+      uLevel: { value: 0 },
+      uWave: { value: 0 },
+    };
+    this.driftShared = {
+      uDriftPhase: { value: 0 },
+      uPixelRatio: { value: 1 },
+    };
+
     this.buildPost();
-
     this.onPointerMove = (event) => {
       this.mouse.set((event.clientX / window.innerWidth) * 2 - 1, -(event.clientY / window.innerHeight) * 2 + 1);
     };
@@ -103,136 +119,114 @@ export class Hologram {
     this.resize();
   }
 
-  buildReactor() {
-    const p = this.theme.proportions;
-    this.reactorUniforms = {
-      uLayer: { value: 0 },
-      uTime: { value: 0 },
-      uSpeed: { value: this.motion.speed },
-      uPlaneSize: { value: REACTOR_PLANE },
-      uLight: { value: new THREE.Vector2(0.55, 0.65).normalize() },
-      uCoreIntensity: { value: 0 },
-      uRingIntensity: { value: 0 },
-      uCoilLight: { value: 0 },
-      uBreathe: { value: 0 },
-      uChase: { value: 0 },
-      uRingPulse: { value: 0 },
-      uLevel: { value: 0 },
-      uCoreTint: { value: new THREE.Vector3(1, 1, 1) },
-      uRingColor: { value: vec3(this.theme.colors.ring) },
-      uTriangle: { value: this.theme.coreShape === 'triangle' ? 1 : 0 },
-      uCoilCount: { value: this.theme.coilCount },
-      uHousingOuter: { value: p.housingOuter },
-      uHousingInner: { value: p.housingInner },
-      uCoilOuter: { value: p.coilOuter },
-      uCoilInner: { value: p.coilInner },
-      uRingRadius: { value: p.ringRadius },
-      uRingWidth: { value: p.ringWidth },
-      uCoreRadius: { value: p.coreRadius },
-    };
-    const geometry = new THREE.PlaneGeometry(REACTOR_PLANE, REACTOR_PLANE);
-    this.layerMaterials = LAYERS.map(({ layer, z, additive }) => {
-      // Each layer shares the uniform objects (same values) but has its own uLayer.
-      const uniforms = { ...this.reactorUniforms, uLayer: { value: layer } };
-      const mat = material(reactorFrag, uniforms, { additive });
-      const mesh = new THREE.Mesh(geometry, mat);
-      mesh.position.z = z;
-      mesh.renderOrder = 10 + layer;
-      this.group.add(mesh);
-      return mat;
+  // -- scene ----------------------------------------------------------------------------
+
+  material(vertexShader, fragmentShader, uniforms) {
+    return new THREE.ShaderMaterial({
+      vertexShader,
+      fragmentShader: FRAG_PREFIX + fragmentShader,
+      uniforms: { ...this.shared, ...uniforms },
+      transparent: true,
+      depthWrite: false,
+      depthTest: false,
+      blending: THREE.AdditiveBlending,
     });
   }
 
-  buildSurroundings() {
-    this.auraUniforms = {
-      uTime: { value: 0 },
-      uSpeed: { value: this.motion.speed },
-      uRipple: { value: this.motion.ripple },
-      uPlaneSize: { value: AURA_PLANE },
-      uIntensity: { value: 0 },
-      uLevel: { value: 0 },
-      uColor: { value: new THREE.Vector3(1, 1, 1) },
-      uStartRadius: { value: this.theme.proportions.housingOuter },
-    };
-    const aura = new THREE.Mesh(
-      new THREE.PlaneGeometry(AURA_PLANE, AURA_PLANE),
-      material(auraFrag, this.auraUniforms, { additive: true }),
-    );
-    aura.position.z = -0.05;
-    aura.renderOrder = 2;
-    this.group.add(aura);
-    this.aura = aura;
+  /** (Re)build every layer for the current detail level. Disposes what was there. */
+  build(compact) {
+    this.disposeScene();
+    this.compact = compact;
+    const theme = this.theme;
+    const counts = compact ? theme.compactCounts : 1;
+    const rand = random(7);
 
-    this.hudUniforms = {
-      uTime: { value: 0 },
-      uSpeed: { value: this.motion.speed },
-      uPlaneSize: { value: HUD_PLANE },
-      uIntensity: { value: 0.35 },
-      uColor: { value: vec3(this.theme.colors.ring) },
-    };
-    const hud = new THREE.Mesh(
-      new THREE.PlaneGeometry(HUD_PLANE, HUD_PLANE),
-      material(hudFrag, this.hudUniforms, { additive: true }),
-    );
-    hud.position.z = -0.12;
-    hud.renderOrder = 1;
-    this.group.add(hud);
-
-    const count = Math.round(PARTICLE_COUNT * this.motion.particles);
-    const positions = new Float32Array(count * 3);
-    const seeds = new Float32Array(count);
-    for (let i = 0; i < count; i += 1) {
-      const angle = Math.random() * Math.PI * 2;
-      const radius = 1.1 + Math.pow(Math.random(), 0.7) * 1.6;
-      positions.set([Math.cos(angle) * radius, Math.sin(angle) * radius, (Math.random() - 0.5) * 0.6], i * 3);
-      seeds[i] = Math.random();
+    this.layers = [];
+    for (const spec of this.layerSpecs) {
+      if (compact && spec.compact === false) continue;
+      const scaled = scaledSpec(spec, counts);
+      const data = GENERATORS[spec.kind](scaled, random(Math.floor(rand() * 1e9)));
+      const geometry = toGeometry(data);
+      let object;
+      if (spec.kind === 'flares') {
+        object = new THREE.Mesh(
+          geometry,
+          this.material(glowVert, glowFrag, { uAlpha: { value: spec.alpha }, uFlare: { value: 1 }, uScale: { value: 1 } }),
+        );
+      } else {
+        const uniforms = {
+          uAlpha: { value: spec.alpha },
+          uOutline: { value: spec.kind === 'arcs' ? 1 : 0 },
+          uScale: { value: 1 },
+        };
+        const mat = this.material(hudVert, hudFrag, uniforms);
+        object = data.mode === 'lines' ? new THREE.LineSegments(geometry, mat) : new THREE.Mesh(geometry, mat);
+      }
+      // Outer group: depth and tilt (fixed). Inner object: rotation about the disc axis.
+      const holder = new THREE.Group();
+      holder.position.z = spec.z;
+      const [tx, ty] = spec.tilt ?? [0, 0];
+      holder.rotation.set(tx * DEG, ty * DEG, 0);
+      object.rotation.z = rand() * Math.PI * 2;
+      holder.add(object);
+      this.root.add(holder);
+      this.layers.push({ spec, object, uScale: object.material.uniforms.uScale });
     }
-    const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-    geometry.setAttribute('aSeed', new THREE.BufferAttribute(seeds, 1));
-    this.particleUniforms = {
-      uTime: { value: 0 },
-      uSpeed: { value: this.motion.speed },
-      uPixelRatio: { value: 1 },
-      uColor: { value: vec3(this.theme.colors.ring) },
-      uIntensity: { value: 0.5 },
-    };
-    const points = new THREE.Points(
-      geometry,
-      new THREE.ShaderMaterial({
-        vertexShader: particlesVert,
-        fragmentShader: particlesFrag,
-        uniforms: this.particleUniforms,
-        transparent: true,
-        depthWrite: false,
-        depthTest: false,
-        blending: THREE.AdditiveBlending,
+
+    // The bright central iris glow.
+    const core = new THREE.Mesh(
+      toGeometry(flareQuads({ radius: 0, count: 1, size: theme.core.radius * 5 })),
+      this.material(glowVert, glowFrag, {
+        uAlpha: { value: theme.core.intensity },
+        uFlare: { value: 0 },
+        uScale: { value: 1 },
       }),
     );
-    points.renderOrder = 3;
-    this.group.add(points);
+    core.position.z = 0.32;
+    this.root.add(core);
+    this.core = core;
+
+    // Particles and fragments drifting outward through the depth of the scene.
+    const particleCount = Math.round(theme.particles.count * counts * this.motion.particles);
+    const fragmentCount = Math.round(theme.fragments.count * counts * this.motion.particles);
+    const dots = particles({ ...theme.particles, count: Math.max(1, particleCount) }, random(11));
+    const bits = fragments({ ...theme.fragments, count: Math.max(1, fragmentCount) }, random(12));
+    const driftUniforms = (spec, points) => ({
+      ...this.driftShared,
+      uInner: { value: spec.inner },
+      uOuter: { value: spec.outer },
+      uSize: { value: theme.particles.size },
+      uAlpha: { value: points ? 0.9 : 0.55 },
+      uPoints: { value: points ? 1 : 0 },
+    });
+    this.root.add(new THREE.Points(toGeometry(dots), this.material(driftVert, driftFrag, driftUniforms(dots, true))));
+    this.root.add(new THREE.LineSegments(toGeometry(bits), this.material(driftVert, driftFrag, driftUniforms(bits, false))));
+  }
+
+  disposeScene() {
+    this.root.traverse((object) => {
+      object.geometry?.dispose();
+      object.material?.dispose();
+    });
+    this.root.clear();
+    this.layers = [];
   }
 
   buildPost() {
     this.composer = new EffectComposer(this.renderer);
     this.composer.addPass(new RenderPass(this.scene, this.camera));
-    this.bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 1, this.theme.bloom.radius, this.theme.bloom.threshold);
+    const { radius, threshold } = this.theme.bloom;
+    this.bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 1, radius, threshold);
     this.composer.addPass(this.bloom);
-    this.finalUniforms = {
-      tDiffuse: { value: null },
-      uTime: { value: 0 },
-      uResolution: { value: new THREE.Vector2(1, 1) },
-      uCenter: { value: new THREE.Vector2(0.5, 0.5) },
-      uReactorRadius: { value: 100 },
-      uShimmer: { value: 1 },
-      uScanlines: { value: 1 },
-      uFlicker: { value: 0 },
-      uSaturation: { value: 1 },
-      uErrorMix: { value: 0 },
-      uErrorColor: { value: vec3(this.theme.colors.error) },
-    };
     this.finalPass = new ShaderPass({
-      uniforms: this.finalUniforms,
+      uniforms: {
+        tDiffuse: { value: null },
+        uTime: { value: 0 },
+        uFlicker: { value: 0 },
+        uChroma: { value: this.theme.chroma },
+        uResolution: { value: new THREE.Vector2(1, 1) },
+        uVignette: { value: this.theme.vignette },
+      },
       vertexShader: quadVert,
       fragmentShader: `${commonGlsl}\n${finalFrag}`,
     });
@@ -243,7 +237,7 @@ export class Hologram {
 
   // -- public API --------------------------------------------------------------------
 
-  /** One of the STATE_PARAMS keys; the look eases toward it. */
+  /** One of the STATE_PARAMS keys; the look cross-fades toward it. */
   setState(name) {
     this.stateName = STATE_PARAMS[name] ? name : 'idle';
   }
@@ -252,7 +246,7 @@ export class Hologram {
     if (source === 'mic' || source === 'tts') this.levels[source] = level;
   }
 
-  /** Fraction of the smaller window dimension the reactor's diameter should fill. */
+  /** Fraction of the smaller window dimension the main dial's diameter should fill. */
   setFit(fit) {
     this.fit = fit;
     this.resize();
@@ -260,10 +254,7 @@ export class Hologram {
 
   setReducedMotion(reduced) {
     this.motion = reduced ? MOTION.reduced : MOTION.normal;
-    for (const uniforms of [this.reactorUniforms, this.auraUniforms, this.hudUniforms, this.particleUniforms]) {
-      uniforms.uSpeed.value = this.motion.speed;
-    }
-    this.auraUniforms.uRipple.value = this.motion.ripple;
+    this.build(this.compact ?? false); // particle counts depend on it
   }
 
   start() {
@@ -285,7 +276,7 @@ export class Hologram {
       this.rafHandle = requestAnimationFrame((timestamp) => this.tick(timestamp));
     };
     if (CALM_STATES.has(this.stateName)) {
-      this.timeoutHandle = setTimeout(frame, CALM_FRAME_MS);
+      this.timeoutHandle = setTimeout(frame, this.theme.calmFrameMs);
     } else {
       frame();
     }
@@ -296,6 +287,10 @@ export class Hologram {
     window.removeEventListener('pointermove', this.onPointerMove);
     document.removeEventListener('visibilitychange', this.onVisibility);
     this.resizeObserver.disconnect();
+    this.disposeScene();
+    this.bloom.dispose();
+    this.finalPass.material?.dispose();
+    this.composer.dispose?.();
     this.renderer.dispose();
   }
 
@@ -305,21 +300,32 @@ export class Hologram {
     const host = this.canvas.parentElement ?? this.canvas;
     const width = Math.max(1, host.clientWidth);
     const height = Math.max(1, host.clientHeight);
+    const compact = Math.min(width, height) < this.theme.compactBelowPx;
+    if (compact !== this.compact) this.build(compact);
     const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
     this.renderer.setPixelRatio(pixelRatio);
     this.renderer.setSize(width, height, false);
     this.composer.setPixelRatio(pixelRatio);
     this.composer.setSize(width, height);
     this.camera.aspect = width / height;
-    // Distance at which the reactor (diameter 2) fills `fit` of the smaller dimension.
-    const tanHalf = Math.tan(THREE.MathUtils.degToRad(FOV_DEG / 2));
+    // Distance at which the main dial (diameter 2) fills `fit` of the smaller dimension.
+    const tanHalf = Math.tan(THREE.MathUtils.degToRad(this.theme.camera.fovDeg / 2));
     const limiting = Math.min(1, this.camera.aspect);
-    this.camera.position.z = 2 / (this.fit * 2 * tanHalf * limiting);
+    this.distance = 2 / (this.fit * 2 * tanHalf * limiting);
     this.camera.updateProjectionMatrix();
-    const visibleHeight = 2 * this.camera.position.z * tanHalf;
+    this.driftShared.uPixelRatio.value = pixelRatio;
     this.finalUniforms.uResolution.value.set(width * pixelRatio, height * pixelRatio);
-    this.finalUniforms.uReactorRadius.value = (height * pixelRatio) / visibleHeight;
-    this.particleUniforms.uPixelRatio.value = pixelRatio;
+    this.placeCamera();
+  }
+
+  placeCamera() {
+    const camera = this.theme.camera;
+    const drift = camera.drift * this.motion.drift;
+    const ax = this.look.x * camera.parallax * this.motion.parallax + Math.sin(this.time * camera.driftSpeed) * drift;
+    const ay = this.look.y * camera.parallax * this.motion.parallax + Math.sin(this.time * camera.driftSpeed * 0.73 + 1.3) * drift * 0.7;
+    const d = this.distance ?? 6;
+    this.camera.position.set(Math.sin(ax) * d, Math.sin(ay) * d, Math.cos(ax) * Math.cos(ay) * d);
+    this.camera.lookAt(0, 0, 0);
   }
 
   tick(timestamp) {
@@ -333,49 +339,45 @@ export class Hologram {
   }
 
   update(dt) {
-    const target = STATE_PARAMS[this.stateName];
-    this.params = easeParams(this.params, target, easeAmount(STATE_EASE_PER_SECOND, dt));
+    this.params = easeParams(this.params, STATE_PARAMS[this.stateName], fadeAmount(dt, this.theme.fadeMs));
     const p = this.params;
+    const motion = this.motion;
 
     const source = this.stateName === 'listening' ? 'mic' : this.stateName === 'speaking' ? 'tts' : null;
     const level = this.envelope.update(source ? this.levels[source] : 0, dt) * p.levelGain;
+    const pulse = level * p.pulse * motion.pulse;
 
-    const r = this.reactorUniforms;
-    r.uTime.value = this.time;
-    r.uCoreIntensity.value = p.coreIntensity;
-    r.uRingIntensity.value = p.ringIntensity;
-    r.uCoilLight.value = p.coilLight;
-    r.uBreathe.value = p.breathe;
-    r.uChase.value = p.chase;
-    r.uRingPulse.value = p.ringPulse;
-    r.uLevel.value = level;
-    r.uCoreTint.value.set(...p.coreTint);
-    r.uRingColor.value.set(...p.ringColor);
+    const breathe = 1 - p.breathe * 0.22 * (0.5 + 0.5 * Math.sin(this.time * 1.2 * motion.speed));
+    const s = this.shared;
+    s.uIntensity.value = p.intensity * breathe * (1 + level * 0.9 * motion.pulse);
+    s.uOrangeMix.value = p.orange;
+    s.uTwoTone.value = p.twoTone;
+    s.uChase.value = p.chase;
+    s.uError.value = p.error;
+    s.uSaturation.value = p.saturation;
+    s.uLevel.value = pulse;
 
-    // The light (specular highlights) and the tilt both follow the mouse.
-    const parallax = PARALLAX_MAX_RAD * this.motion.parallax;
-    const ease = easeAmount(0.9, dt);
-    this.group.rotation.y += (this.mouse.x * parallax - this.group.rotation.y) * ease;
-    this.group.rotation.x += (-this.mouse.y * parallax - this.group.rotation.x) * ease;
-    r.uLight.value.set(0.55 + this.mouse.x * 0.6, 0.65 + this.mouse.y * 0.6).normalize();
+    const spin = p.spin * motion.speed;
+    this.phases.chase += dt * this.theme.chaseSpeed * spin;
+    this.phases.drift += dt * this.theme.particles.speed * p.drift * motion.speed;
+    this.phases.wave = (this.phases.wave + dt * (0.5 + pulse * 0.8)) % 1;
+    s.uChasePhase.value = this.phases.chase;
+    s.uWave.value = this.phases.wave;
+    this.driftShared.uDriftPhase.value = this.phases.drift;
 
-    this.auraUniforms.uTime.value = this.time;
-    this.auraUniforms.uIntensity.value = p.auraIntensity;
-    // A full-screen shader with nothing to show is pure cost (idle, thinking, muted).
-    this.aura.visible = p.auraIntensity > 0.002;
-    this.auraUniforms.uLevel.value = level;
-    this.auraUniforms.uColor.value.set(...p.auraColor);
-    this.hudUniforms.uTime.value = this.time;
-    this.hudUniforms.uColor.value.set(...p.ringColor);
-    this.particleUniforms.uTime.value = this.time;
-    this.particleUniforms.uColor.value.set(...p.ringColor);
+    for (const layer of this.layers) {
+      layer.object.rotation.z += dt * layer.spec.speed * spin;
+      // Rings breathe outward with the voice; inner ones (the iris) the most.
+      const radius = layer.spec.radius ?? layer.spec.inner ?? 1;
+      layer.uScale.value = 1 + pulse * 0.06 * (1.2 - Math.min(radius, 1));
+    }
+    this.core.material.uniforms.uScale.value = p.coreSize * (1 + pulse * 0.55);
 
-    this.bloom.strength = p.bloomStrength * (1 + level * 0.25);
-    const f = this.finalUniforms;
-    f.uTime.value = this.time;
-    f.uFlicker.value = p.flicker * this.motion.flicker;
-    f.uShimmer.value = this.motion.ripple * (0.5 + p.coreIntensity);
-    f.uSaturation.value = p.saturation;
-    f.uErrorMix.value = p.errorMix;
+    this.look.lerp(this.mouse, easeAmount(0.9, dt));
+    this.placeCamera();
+
+    this.bloom.strength = p.bloomStrength * (1 + level * 0.5);
+    this.finalUniforms.uTime.value = this.time;
+    this.finalUniforms.uFlicker.value = p.flicker * motion.flicker;
   }
 }

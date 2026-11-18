@@ -151,6 +151,11 @@ class Assistant:
 
     # -- public API ---------------------------------------------------------------
 
+    @property
+    def tools_running(self) -> bool:
+        """True while this turn's tool calls are executing (reported by a stop)."""
+        return self._turn_active and self._tools_running
+
     async def handle_text(
         self,
         text: str,

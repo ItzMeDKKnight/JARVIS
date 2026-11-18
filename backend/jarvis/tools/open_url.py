@@ -9,6 +9,7 @@ from pydantic import Field
 
 from jarvis.os_adapters.base import BrowserOpener, LaunchError
 from jarvis.tools.base import Tool, ToolContext, ToolInput, ToolOutcome
+from jarvis.tools.site_catalog import SiteCatalog
 
 ALLOWED_SCHEMES = frozenset({"http", "https"})
 MAX_URL_LENGTH = 2048
@@ -54,7 +55,10 @@ class OpenUrlInput(ToolInput):
     url: str = Field(
         min_length=1,
         max_length=MAX_URL_LENGTH,
-        description="Full http or https address, e.g. https://www.youtube.com",
+        description=(
+            "Full http or https address (e.g. https://www.youtube.com), or the name of a "
+            "well-known site exactly as the user said it (e.g. 'GitHub', 'Gmail', 'जीमेल')."
+        ),
     )
 
 
@@ -62,23 +66,39 @@ class OpenUrlTool(Tool[OpenUrlInput]):
     name = "open_url"
     description = (
         "Open a website in the user's default browser. Call this when the user asks to open or "
-        "go to a specific site or page. Only http and https addresses are accepted."
+        "go to a site or page, by address or by name ('open GitHub', 'Gmail kholo'). Only http "
+        "and https addresses are accepted."
     )
     input_model = OpenUrlInput
 
-    def __init__(self, browser: BrowserOpener, *, timeout_s: float) -> None:
+    def __init__(
+        self, browser: BrowserOpener, *, timeout_s: float, sites: SiteCatalog | None = None
+    ) -> None:
         self._browser = browser
+        self._sites = sites
         self.timeout_s = timeout_s
+
+    def _resolve(self, raw: str) -> str:
+        """A known site name becomes its allowlisted address; anything else must be a URL."""
+        site = self._sites.resolve(raw) if self._sites is not None else None
+        if site is not None:
+            return validate_url(site.url)
+        url = validate_url(raw)
+        host = urlsplit(url).hostname or ""
+        if "." not in host and host != "localhost":
+            # "open github" without a match would become https://github, which goes nowhere.
+            raise InvalidUrlError(f"'{raw}' is not a known site name; give the full address")
+        return url
 
     def narration_target(self, args: OpenUrlInput) -> str | None:
         try:
-            return urlsplit(validate_url(args.url)).hostname or ""
+            return urlsplit(self._resolve(args.url)).hostname or ""
         except InvalidUrlError:
             return None  # nothing will be opened, so do not announce it
 
     async def run(self, args: OpenUrlInput, ctx: ToolContext) -> ToolOutcome:
         try:
-            url = validate_url(args.url)
+            url = self._resolve(args.url)
         except InvalidUrlError as exc:
             return ToolOutcome(
                 content=f"Refused to open that address: {exc}.", ok=False, summary="URL rejected"

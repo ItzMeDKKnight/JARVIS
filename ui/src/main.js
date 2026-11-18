@@ -18,6 +18,7 @@ import { StatusBar } from './panels/status-bar.js';
 import { TranscriptPanel } from './panels/transcript.js';
 import { createProtocol } from './protocol.js';
 import { installShortcuts } from './shortcuts.js';
+import { StopControl, describeStop } from './stop.js';
 import { ConnectionState, JarvisSocket } from './ws-client.js';
 
 const bridge = window.jarvis;
@@ -97,6 +98,7 @@ const handlers = {
   state_changed(event) {
     view.state = event.state;
     statusBar.setState(event.state);
+    stopControl.setState(event.state);
     if (event.state === 'error') {
       view.errorSince = performance.now();
       setTimeout(refreshReactor, ERROR_HOLD_MS + 20);
@@ -145,6 +147,10 @@ const handlers = {
   memory(event) {
     memoryPanel.render(event);
   },
+  stopped(event) {
+    const line = describeStop(event.cancelled);
+    if (line) transcript.addSystem(line);
+  },
 };
 
 const socket = new JarvisSocket({
@@ -179,8 +185,13 @@ bridge.onBackend((info) => {
 socket.start();
 
 function send(type, fields) {
-  if (!socket.send(type, fields)) transcript.addSystem('Not connected to Jarvis yet.', 'error');
+  const sent = socket.send(type, fields);
+  if (!sent) transcript.addSystem('Not connected to Jarvis yet.', 'error');
+  return sent;
 }
+
+// One stop path for the Stop button and Esc.
+const stopControl = new StopControl($('btn-stop'), { send: () => send('interrupt') });
 
 // -- input, shortcuts, tray, window ---------------------------------------------------------
 
@@ -196,9 +207,9 @@ installShortcuts({
   isTyping: () => document.activeElement === ui.input,
   getVoice: () => Boolean(view.status?.voice && !view.status?.muted),
   onAction: (action) => {
-    if (action === 'blur') {
-      ui.input.blur();
-      send('interrupt');
+    if (action === 'blur' || action === 'interrupt') {
+      if (action === 'blur') ui.input.blur();
+      stopControl.stop();
     } else {
       send(action);
     }

@@ -10,7 +10,9 @@ quiet, which drives the SPEAKING state and the first-audio latency mark.
 * :class:`VoiceSpeaker` chunks text at sentence boundaries, splits each chunk
   by script (Latin → English voice, Devanagari → Hindi voice), synthesises on
   a worker thread, applies postfx, and queues audio on the player. Chunk n+1
-  is synthesised while chunk n is playing.
+  is synthesised while chunk n is playing. Complete lines passed to ``say()``
+  (narration, greeting, fallbacks) are cached after their first rendering, since
+  the same few lines come back constantly; streamed replies are never cached.
 """
 
 from __future__ import annotations
@@ -18,6 +20,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+from collections import OrderedDict
 from collections.abc import Coroutine
 from typing import Any, Protocol
 
@@ -118,6 +121,7 @@ class VoiceSpeaker:
         *,
         segmenter: SegmenterConfig,
         postfx: PostFXConfig,
+        phrase_cache_size: int = 0,
     ) -> None:
         self._engine = engine
         self._sink = sink
@@ -125,7 +129,10 @@ class VoiceSpeaker:
         self._postfx = postfx
         self._chunker = SentenceChunker(segmenter)
         self._language: Language = "en"
-        self._queue: asyncio.Queue[tuple[int, str, Language]] = asyncio.Queue()
+        # (generation, text, language, cacheable)
+        self._queue: asyncio.Queue[tuple[int, str, Language, bool]] = asyncio.Queue()
+        self._phrase_cache: OrderedDict[tuple[str, Language], AudioArray] = OrderedDict()
+        self._phrase_cache_size = phrase_cache_size
         self._generation = 0  # bumped by stop(); stale work from older generations is dropped
         self._synthesizing = False
         self._listener: SpeakerListener | None = None
@@ -166,17 +173,17 @@ class VoiceSpeaker:
     async def feed(self, fragment: str, language: Language) -> None:
         self._language = language
         for chunk in self._chunker.feed(fragment):
-            self._queue.put_nowait((self._generation, chunk, language))
+            self._queue.put_nowait((self._generation, chunk, language, False))
 
     async def end_utterance(self) -> None:
         for chunk in self._chunker.flush():
-            self._queue.put_nowait((self._generation, chunk, self._language))
+            self._queue.put_nowait((self._generation, chunk, self._language, False))
         self._chunker = SentenceChunker(self._segmenter_config)
 
     async def say(self, line: str, language: Language) -> None:
         cleaned = clean_for_speech(line)
         if cleaned:
-            self._queue.put_nowait((self._generation, cleaned, language))
+            self._queue.put_nowait((self._generation, cleaned, language, True))
 
     @property
     def is_playing(self) -> bool:
@@ -201,17 +208,25 @@ class VoiceSpeaker:
 
     async def _run(self) -> None:
         while True:
-            generation, text, language = await self._queue.get()
+            generation, text, language, cacheable = await self._queue.get()
             self._synthesizing = True
             try:
                 if generation == self._generation:
-                    await self._speak_chunk(generation, text, language)
+                    await self._speak_chunk(generation, text, language, cacheable=cacheable)
             finally:
                 self._synthesizing = False
                 self._queue.task_done()
 
-    async def _speak_chunk(self, generation: int, text: str, language: Language) -> None:
+    async def _speak_chunk(
+        self, generation: int, text: str, language: Language, *, cacheable: bool = False
+    ) -> None:
         for segment in split_by_script(text, default=language):
+            key = (segment.text, segment.language)
+            cached = self._phrase_cache.get(key) if cacheable else None
+            if cached is not None:
+                self._phrase_cache.move_to_end(key)
+                self._sink.enqueue(cached)
+                continue
             try:
                 audio = await asyncio.to_thread(self._render, segment.text, segment.language)
             except TTSError:
@@ -220,6 +235,10 @@ class VoiceSpeaker:
             except Exception:
                 logger.exception("unexpected synthesis error")
                 continue
+            if cacheable and self._phrase_cache_size > 0:
+                self._phrase_cache[key] = audio
+                while len(self._phrase_cache) > self._phrase_cache_size:
+                    self._phrase_cache.popitem(last=False)
             if generation != self._generation:
                 return  # stop() was called while we were synthesising
             self._sink.enqueue(audio)

@@ -20,7 +20,7 @@ from typing import Protocol
 
 from jarvis.assistant import Assistant
 from jarvis.confirm import is_yes
-from jarvis.events import AssistantState, EventBus, Status, Transcript
+from jarvis.events import AssistantState, EventBus, Status, StopTarget, Transcript
 from jarvis.state import StateMachine
 from jarvis.utils.language import detect_language
 
@@ -32,7 +32,10 @@ S = AssistantState
 class SessionControl(Protocol):
     def status(self) -> Status: ...
     async def toggle_mute(self) -> None: ...
-    async def interrupt(self) -> None: ...
+    async def interrupt(self) -> tuple[StopTarget, ...]:
+        """Stop everything in progress; return what was actually cancelled."""
+        ...
+
     async def submit_text(self, text: str) -> None: ...
     async def ptt_start(self) -> None: ...
     async def ptt_stop(self) -> None: ...
@@ -75,13 +78,20 @@ class TextSession:
             await self._settle()
         await self._bus.publish(self.status())
 
-    async def interrupt(self) -> None:
-        self._deliver_answer("")
+    async def interrupt(self) -> tuple[StopTarget, ...]:
+        cancelled: list[StopTarget] = []
         turn, self._turn = self._turn, None
         if turn is not None and not turn.done():
+            cancelled.append("reply")
+            if self._assistant is not None and self._assistant.tools_running:
+                cancelled.append("tools")
             turn.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await turn
+        self._deliver_answer("")
+        if cancelled:
+            await self._settle()  # the cancelled turn ended in IDLE; return to MUTED if muted
+        return tuple(cancelled)
 
     async def submit_text(self, text: str) -> None:
         text = text.strip()
