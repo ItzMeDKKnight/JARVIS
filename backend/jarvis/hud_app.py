@@ -51,12 +51,14 @@ from jarvis.events import (
     TextInput,
     Transcript,
     UsageUpdate,
+    VisionSet,
 )
 from jarvis.llm.types import LLMClient
 from jarvis.memory.manager import MemoryService
 from jarvis.server import HudServer
 from jarvis.state import StateMachine
 from jarvis.tools.registry import ToolRegistry
+from jarvis.vision.gate import ScreenGate
 
 logger = logging.getLogger(__name__)
 
@@ -90,8 +92,10 @@ class Hud:
         state: StateMachine,
         memory: MemoryService | None,
         control: SessionControl,
+        screen_gate: ScreenGate | None = None,
     ) -> None:
         self._config = config
+        self._screen_gate = screen_gate
         self._bus = bus
         self._state = state
         self._memory = memory
@@ -107,6 +111,8 @@ class Hud:
     async def snapshot(self) -> list[BaseModel]:
         """Everything a newly connected HUD needs to draw the current picture."""
         events: list[BaseModel] = [StateChanged(state=self._state.state), self.control.status()]
+        if self._screen_gate is not None:
+            events.append(self._screen_gate.event())
         if self._last_usage is not None:
             events.append(self._last_usage)
         events.append(await self.memory_snapshot())
@@ -145,11 +151,31 @@ class Hud:
             self.shutdown.set()
         elif isinstance(command, MemoryList | MemoryDelete | MemoryForgetAll):
             await self._memory_command(command)
+        elif isinstance(command, VisionSet):
+            await self._vision_set(command.enabled)
+
+    async def _vision_set(self, enabled: bool) -> None:
+        """The eye button / tray item. Pressing the button is itself the consent to turn on."""
+        gate = self._screen_gate
+        if gate is None:
+            await self._bus.publish(
+                ErrorEvent(code="vision_unavailable", message="Screen vision is not available")
+            )
+            return
+        if enabled:
+            await gate.enable(source="hud")
+        else:
+            await gate.disable(source="hud")
 
     async def _stop(self, control: SessionControl) -> None:
         """The one stop path (HUD Stop button and Esc): cancel, then tell the HUD what stopped."""
         started = time.perf_counter()
+        # Esc / Stop also ends screen vision, first, so no capture can start meanwhile.
+        gate = self._screen_gate
+        vision_was_on = gate is not None and await gate.disable(source="stop")
         cancelled = await control.interrupt()
+        if vision_was_on:
+            cancelled = (*cancelled, "vision")
         await self._bus.publish(Stopped(cancelled=cancelled))
         logger.info(
             "stop handled",
@@ -208,7 +234,14 @@ async def run_hud(
             cost=cost,
         )
     )
-    hud = Hud(config, bus=bus, state=state, memory=memory, control=text_session)
+    hud = Hud(
+        config,
+        bus=bus,
+        state=state,
+        memory=memory,
+        control=text_session,
+        screen_gate=registry.screen_gate,
+    )
     server = HudServer(
         config.server, token=token, bus=bus, on_command=hud.handle, snapshot=hud.snapshot
     )

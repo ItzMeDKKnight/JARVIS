@@ -17,7 +17,8 @@ contextBridge.exposeInMainWorld('jarvis', {
   onTrayCommand: (callback) => subscribe('tray-command', callback),
   onWindow: (callback) => subscribe('window', callback),
   getSettings: () => ipcRenderer.invoke('settings:get'),
-  reportStatus: (status) => ipcRenderer.invoke('hud:status', { muted: Boolean(status && status.muted) }),
+  reportStatus: (status) =>
+    ipcRenderer.invoke('hud:status', { muted: Boolean(status && status.muted), vision: Boolean(status && status.vision) }),
   copyText: (text) => ipcRenderer.invoke('clipboard:write', String(text)),
   openExternal: (url) => ipcRenderer.invoke('shell:open', String(url)),
   openFile: (filePath) => ipcRenderer.invoke('file:open', String(filePath)),

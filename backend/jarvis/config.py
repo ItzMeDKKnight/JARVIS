@@ -159,6 +159,34 @@ class LocalizedText(_Frozen):
         return self.hi if language == "hi" else self.en
 
 
+class VisionConfig(_Frozen):
+    """Screen vision mode: a separate Claude call that sees (and, on request, operates) the screen.
+
+    Deliberately no "enabled at start" setting: the mode is off at every start and is never
+    saved, by design.
+    """
+
+    model: str
+    effort: Effort
+    thinking: ThinkingMode
+    max_tokens: int = Field(gt=0)  # per step of the look/act loop
+    timeout_s: float = Field(gt=0)  # per request
+    max_steps_look: int = Field(gt=0)
+    max_steps_act: int = Field(gt=0)
+    # Screenshots are scaled down to fit this long edge before they are sent (model limit 2576).
+    max_long_edge_px: int = Field(ge=640, le=2576)
+    jpeg_quality: int = Field(ge=40, le=95)
+    # Rough token cost of one screenshot and of the computer-use toolset, for the budget check.
+    tokens_per_megapixel: int = Field(gt=0)
+    toolset_tokens: int = Field(ge=0)
+    settle_ms: int = Field(ge=0)  # pause after an action before the next screenshot
+    max_type_chars: int = Field(gt=0)
+    # Said (or typed) while the mode is on, these switch it off at once, without a Claude call.
+    off_phrases: tuple[str, ...] = Field(min_length=1)
+    # Spoken names of the risky-step categories in the confirmation question.
+    risk_labels: dict[str, LocalizedText]
+
+
 class MessagesConfig(_Frozen):
     api_unreachable: LocalizedText
     refusal: LocalizedText
@@ -172,6 +200,12 @@ class MessagesConfig(_Frozen):
     voice_unavailable: LocalizedText
     confirm_forget_matches: LocalizedText
     confirm_forget_all: LocalizedText
+    confirm_screen_vision_on: LocalizedText
+    screen_vision_on: LocalizedText
+    screen_vision_off: LocalizedText
+    screen_vision_is_off: LocalizedText
+    # {category} = what kind of risky step, {target} = what exactly.
+    confirm_screen_action: LocalizedText
 
 
 class MemoryConfig(_Frozen):
@@ -423,6 +457,7 @@ class JarvisConfig(_Frozen):
     search: SearchConfig
     tools: ToolsConfig
     pdf: PdfConfig
+    vision: VisionConfig
     narration: dict[str, LocalizedText]
     messages: MessagesConfig
     logging: LoggingConfig

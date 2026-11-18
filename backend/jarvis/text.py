@@ -15,6 +15,12 @@ _NUKTA = "़"
 _SEPARATORS = re.compile(r"[^\wऀ-ॿ+#]+")
 
 
+def matches_phrase(text: str, phrases: tuple[str, ...]) -> bool:
+    """True if one of ``phrases`` appears in ``text`` as whole words (after normalising)."""
+    haystack = f" {normalize_name(text)} "
+    return any(f" {normalize_name(p)} " in haystack for p in phrases if p.strip())
+
+
 def normalize_name(text: str) -> str:
     """Casefold, unify Unicode forms, drop Hindi nukta, and collapse punctuation to spaces.
 

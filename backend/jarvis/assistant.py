@@ -51,6 +51,7 @@ from jarvis.llm.types import LLMClient, LLMError, LLMRequest, LLMResponse
 from jarvis.memory.manager import MemoryService
 from jarvis.speech import Speaker, TextSpeaker
 from jarvis.state import StateMachine
+from jarvis.text import matches_phrase
 from jarvis.tools.base import Confirmer, ToolContext
 from jarvis.tools.registry import ToolRegistry
 from jarvis.utils.language import Language, detect_language
@@ -185,6 +186,8 @@ class Assistant:
         )
         await self._begin_turn(then)
         try:
+            if await self._screen_vision_off_command(text):
+                return
             await self._converse(text)
             await self._maybe_warn_budget()
         except asyncio.CancelledError:
@@ -201,6 +204,17 @@ class Assistant:
             await self._speak_failure("internal", self._config.messages.internal_error)
         finally:
             await self._end_turn()
+
+    async def _screen_vision_off_command(self, text: str) -> bool:
+        """'Turn off screen vision' while it is on: switch off now, no Claude call needed."""
+        gate = self._registry.screen_gate
+        if gate is None or not gate.enabled:
+            return False
+        if not matches_phrase(text, self._config.vision.off_phrases):
+            return False
+        await gate.disable(source="voice")
+        await self._speak_line(self._config.messages.screen_vision_off.for_language(self._language))
+        return True
 
     async def announce(
         self, line: str, language: Language, *, then: AssistantState = S.IDLE
@@ -254,7 +268,9 @@ class Assistant:
         route_name, route = self._router.route(text)
         self._history.add_user_text(text)
         await self._add_context_note(text)
-        ctx = ToolContext(bus=self._bus, confirmer=self._confirmer, language=self._language)
+        ctx = ToolContext(
+            bus=self._bus, confirmer=self._confirmer, language=self._language, user_text=text
+        )
         budget = self._config.llm.max_output_tokens_per_turn
 
         for _round in range(self._config.llm.max_tool_rounds + 1):

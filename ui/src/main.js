@@ -40,6 +40,7 @@ const view = {
   state: 'idle',
   errorSince: null,
   status: null,
+  vision: false, // screen vision mode; the backend is the source of truth (off at start)
 };
 
 // -- reactor ----------------------------------------------------------------------------------
@@ -139,7 +140,7 @@ const handlers = {
     ui.mutedBadge.hidden = !event.muted;
     if (!event.voice) showBanner('Voice is unavailable. You can still type to Jarvis.', 'info');
     else if (ui.banner.dataset.kind === 'info') showBanner('');
-    bridge.reportStatus(event);
+    bridge.reportStatus({ ...event, vision: view.vision });
   },
   usage(event) {
     statusBar.setUsage(event);
@@ -151,6 +152,17 @@ const handlers = {
     transcript.addFile(event, async (filePath) => {
       if (!(await bridge.openFile(filePath))) transcript.addSystem('Could not open that file.', 'error');
     });
+  },
+  vision(event) {
+    const changed = view.vision !== event.enabled;
+    view.vision = event.enabled;
+    const button = $('btn-vision');
+    button.dataset.on = String(view.vision);
+    button.setAttribute('aria-pressed', String(view.vision));
+    $('vision-badge').hidden = !view.vision;
+    document.body.classList.toggle('vision-on', view.vision);
+    if (changed) transcript.addSystem(view.vision ? '● Screen vision ON' : 'Screen vision off', view.vision ? 'error' : 'info');
+    bridge.reportStatus({ ...(view.status ?? {}), vision: view.vision });
   },
   stopped(event) {
     const line = describeStop(event.cancelled);
@@ -221,7 +233,10 @@ installShortcuts({
   },
 });
 
-bridge.onTrayCommand((command) => send(command.type));
+bridge.onTrayCommand((command) => send(command.type, command.fields));
+
+// Screen vision: the button toggles it; the backend decides and answers with a `vision` event.
+$('btn-vision').addEventListener('click', () => send('vision_set', { enabled: !view.vision }));
 
 function applyCompact(compact) {
   document.body.classList.toggle('compact', compact);

@@ -32,9 +32,12 @@ from jarvis.tools.open_app import OpenAppTool
 from jarvis.tools.open_url import OpenUrlTool
 from jarvis.tools.pdf_tool import CreatePdfTool, PdfWriter
 from jarvis.tools.play_youtube import PlayYouTubeTool
+from jarvis.tools.screen_tools import ActOnScreenTool, LookAtScreenTool, SetScreenVisionTool
 from jarvis.tools.show_code import ShowCodeTool
 from jarvis.tools.site_catalog import SiteCatalog
 from jarvis.tools.web_search import WebSearchTool
+from jarvis.vision.agent import ScreenAgent
+from jarvis.vision.gate import ScreenGate
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +51,9 @@ class ToolRegistry:
     def __init__(self, narration: dict[str, LocalizedText]) -> None:
         self._tools: dict[str, Tool[Any]] = {}
         self._narration = narration
+        # Set when screen vision tools are registered; the assistant and the HUD switch the
+        # mode through it (it is the one backend switch, see jarvis.vision.gate).
+        self.screen_gate: ScreenGate | None = None
 
     def register(self, tool: Tool[Any]) -> None:
         if tool.name in self._tools:
@@ -154,6 +160,7 @@ def build_default_registry(
     videos: VideoFinder | None = None,
     pdf: PdfWriter | None = None,
     designer: Designer | None = None,
+    screen: tuple[ScreenAgent, ScreenGate] | None = None,
 ) -> ToolRegistry:
     """Register the built-in tools (memory tools only when memory is enabled).
 
@@ -186,6 +193,30 @@ def build_default_registry(
         registry.register(CreatePdfTool(pdf, timeout_s=pdf_timeout, designer=designer))
     registry.register(WebSearchTool(search, timeout_s=config.search.timeout_s))
     registry.register(ShowCodeTool(timeout_s=tools_cfg.timeout_s))
+    if screen is not None:
+        agent, gate = screen
+        messages = config.messages
+        for tool_class in (LookAtScreenTool, ActOnScreenTool):
+            registry.register(
+                tool_class(
+                    agent,
+                    gate,
+                    narration=config.narration,
+                    confirm_question=messages.confirm_screen_action,
+                    is_off_line=messages.screen_vision_is_off,
+                    confirm_timeout_s=tools_cfg.confirm_timeout_s,
+                )
+            )
+        registry.register(
+            SetScreenVisionTool(
+                gate,
+                confirm_question=messages.confirm_screen_vision_on,
+                on_line=messages.screen_vision_on,
+                off_line=messages.screen_vision_off,
+                confirm_timeout_s=tools_cfg.confirm_timeout_s,
+            )
+        )
+        registry.screen_gate = gate
     if memory is not None:
         registry.register(RememberTool(memory, timeout_s=tools_cfg.timeout_s))
         registry.register(RecallMemoryTool(memory, timeout_s=tools_cfg.timeout_s))

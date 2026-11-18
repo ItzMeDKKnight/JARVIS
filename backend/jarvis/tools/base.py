@@ -44,6 +44,8 @@ class ToolContext:
     bus: EventBus
     confirmer: Confirmer
     language: Language
+    # What the user said or typed this turn, verbatim (the screen agent acts only on this).
+    user_text: str = ""
 
 
 @dataclass(frozen=True)

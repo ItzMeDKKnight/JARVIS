@@ -394,7 +394,8 @@
                 "transcription",
                 "reply",
                 "speech",
-                "tools"
+                "tools",
+                "vision"
               ],
               "type": "string"
             },
@@ -590,6 +591,33 @@
         ],
         "title": "UsageUpdate",
         "type": "object"
+      },
+      "VisionMode": {
+        "additionalProperties": false,
+        "description": "Screen vision mode changed (or the HUD just connected). Off at every start.",
+        "properties": {
+          "v": {
+            "const": 2,
+            "default": 2,
+            "title": "V",
+            "type": "integer"
+          },
+          "type": {
+            "const": "vision",
+            "default": "vision",
+            "title": "Type",
+            "type": "string"
+          },
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "enabled"
+        ],
+        "title": "VisionMode",
+        "type": "object"
       }
     },
     "discriminator": {
@@ -606,7 +634,8 @@
         "tool_finished": "#/$defs/ToolFinished",
         "tool_started": "#/$defs/ToolStarted",
         "transcript": "#/$defs/Transcript",
-        "usage": "#/$defs/UsageUpdate"
+        "usage": "#/$defs/UsageUpdate",
+        "vision": "#/$defs/VisionMode"
       },
       "propertyName": "type"
     },
@@ -649,6 +678,9 @@
       },
       {
         "$ref": "#/$defs/FileSaved"
+      },
+      {
+        "$ref": "#/$defs/VisionMode"
       }
     ]
   },
@@ -877,6 +909,33 @@
         ],
         "title": "TextInput",
         "type": "object"
+      },
+      "VisionSet": {
+        "additionalProperties": false,
+        "description": "The HUD's screen vision button (or tray item): turn the mode on or off.",
+        "properties": {
+          "v": {
+            "const": 2,
+            "default": 2,
+            "title": "V",
+            "type": "integer"
+          },
+          "type": {
+            "const": "vision_set",
+            "default": "vision_set",
+            "title": "Type",
+            "type": "string"
+          },
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "enabled"
+        ],
+        "title": "VisionSet",
+        "type": "object"
       }
     },
     "discriminator": {
@@ -890,7 +949,8 @@
         "ptt_start": "#/$defs/PttStart",
         "ptt_stop": "#/$defs/PttStop",
         "shutdown": "#/$defs/Shutdown",
-        "text_input": "#/$defs/TextInput"
+        "text_input": "#/$defs/TextInput",
+        "vision_set": "#/$defs/VisionSet"
       },
       "propertyName": "type"
     },
@@ -924,6 +984,9 @@
       },
       {
         "$ref": "#/$defs/MemoryForgetAll"
+      },
+      {
+        "$ref": "#/$defs/VisionSet"
       }
     ]
   }

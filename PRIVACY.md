@@ -7,15 +7,21 @@ code and every installed package is listed below.
 ## In one paragraph
 
 Your voice never leaves your laptop: wake word, speech recognition and speech synthesis
-all run locally. The only thing Jarvis sends anywhere is **text** (what you said or typed,
-plus context), and it goes to **one place: the Anthropic API**. Everything Jarvis keeps
+all run locally. Normally the only thing Jarvis sends anywhere is **text** (what you said
+or typed, plus context), and it goes to **one place: the Anthropic API**. **The one
+exception is screen vision mode**: while you have it switched on, each time you ask about
+your screen (or ask Jarvis to do something on it), **screenshots of your screen are sent to
+the Claude API**. They show whatever is on your primary monitor at that moment, which can
+include private things (messages, documents, account pages). The mode is off at every
+start, only you can switch it on, and it is never saved. See
+[Screen vision mode](#screen-vision-mode). Everything Jarvis keeps
 about you (memory, logs) sits in one folder on your machine,
 `%LOCALAPPDATA%\Jarvis`. You can export it or delete it with one command each.
 
 ## Every network call Jarvis makes
 
 Found by searching the code for the Anthropic client, `urllib`, `http`, `socket`,
-`subprocess`, `webbrowser` and `os.startfile`. There are exactly five places that open a
+`subprocess`, `webbrowser` and `os.startfile`. There are exactly six places that open a
 connection to another machine. (The HUD link is a fifth socket, but it never leaves the
 laptop: see [The HUD](#the-hud-electron).) All of them go to `api.anthropic.com` over HTTPS, except the one-time
 model downloader.
@@ -26,10 +32,11 @@ model downloader.
 | 2 | `jarvis/search/anthropic_search.py` (web search, and finding a YouTube video for `play_youtube`) | `api.anthropic.com` | when Jarvis searches, or when you ask it to play something on YouTube | the search query only. Anthropic runs the search with a third-party search provider; no search key or SDK is used locally. YouTube lookups are one search restricted to youtube.com; Jarvis never contacts YouTube itself. `search.user_location` only if you set it (off by default). |
 | 3 | `jarvis/memory/summary.py` (memory consolidation) | `api.anthropic.com` | in the background every `memory.consolidate_every_turns` requests (default 6), when the conversation pauses, and on exit | the text of recent turns **with sensitive sentences already removed**, the current rolling summary, and the list of stored facts, so Claude can update the summary and spot new or outdated facts |
 | 4 | `jarvis/documents/designer.py` (PDF layout) | `api.anthropic.com` | only when you ask for a PDF (`pdf.designer.enabled`) | the document's title and text that the conversation already wrote, and the theme you asked for. It returns a layout (structured data), never code or markup; your machine draws the PDF offline |
-| 5 | `scripts/download_models.py` (setup only) | `huggingface.co`, `github.com` (pinned URLs in `config/models.yaml`) | only when you run it | an ordinary HTTPS download request; nothing about you |
+| 5 | `jarvis/vision/agent.py` (screen vision) | `api.anthropic.com` | **only while screen vision mode is on**, and only when you ask about or for something on your screen | **screenshots of your primary monitor** (JPEG, scaled to 1366 px wide), your request in your own words, and the task. In act mode, also the result of each action. Anthropic scans the screenshots for prompt injection. See [Screen vision mode](#screen-vision-mode) |
+| 6 | `scripts/download_models.py` (setup only) | `huggingface.co`, `github.com` (pinned URLs in `config/models.yaml`) | only when you run it | an ordinary HTTPS download request; nothing about you |
 
 The official Anthropic SDK also sends request headers with your OS name, CPU architecture,
-Python and SDK version (`x-stainless-*`). Anthropic's data-handling terms apply to calls 1–4.
+Python and SDK version (`x-stainless-*`). Anthropic's data-handling terms apply to calls 1–5.
 
 `scripts/check_caching.py` is an optional diagnostic that makes two tiny conversation
 calls (type 1) with fixed test sentences.
@@ -48,6 +55,8 @@ Things that look like network activity but are not Jarvis's:
 ## What never leaves your machine
 
 - **Audio.** Your voice and Jarvis's voice are processed in memory, locally.
+- **Your screen, while screen vision mode is off** (the default, at every start). The
+  backend refuses every capture while the mode is off, whatever asks for it.
 - **Your API key**, except as the authentication header to Anthropic. It is never logged,
   printed or shown in any UI.
 - **Logs**, the **memory database file** itself, and the names and paths of apps on your PC.
@@ -76,6 +85,47 @@ Everything is under `%LOCALAPPDATA%\Jarvis` (or `paths.data_dir`). Jarvis refuse
 The current conversation (the last `llm.history_max_turns` turns) is held **in memory only**
 and is gone when Jarvis exits. What carries over between sessions is only what is in
 `memory.db`.
+
+## Screen vision mode
+
+This mode changes the "only text leaves the machine" rule, so here is exactly what it does.
+
+- **Off at every start, never saved.** Only you switch it on: the eye button in the HUD,
+  the tray menu, or by saying "turn on screen vision" / "स्क्रीन विज़न चालू करो", which asks
+  you to confirm out loud first (so a web page can't talk Jarvis into it).
+- **Unmistakable while on:** a red "SCREEN VISION ON" badge and a red frame in the HUD
+  (compact mode too), a red dot on the tray icon, and a checked tray menu item.
+- **A screenshot only when you ask.** There is no continuous capture. Each request about
+  your screen takes one screenshot, plus more only while Jarvis is carrying out an action
+  you asked for (to see the result) or zooming in. Jarvis's own HUD window is excluded from
+  captures while the mode is on (Windows' capture exclusion), as far as Windows allows.
+- **What is sent:** to the Claude API (call 5 above): the screenshots (JPEG, primary monitor,
+  scaled to at most 1366 px), your request in your own words, and the task. Nothing else
+  about you (no memory, no conversation history) goes with them.
+- **Where screenshots live:** only in memory, inside one short request, and they are dropped
+  when it ends. They are **never written to disk, never logged, never stored in `memory.db`
+  or the conversation summary**, and never added to the main conversation. Only Jarvis's
+  short text answer comes back into the conversation, and a turn that looked at the screen
+  is left out of long-term memory entirely (the request and the reply).
+- **Acting on the screen** (clicking, scrolling, typing, pressing keys) happens only when you
+  explicitly ask for an action in that request. Seeing something on screen is never a reason
+  to act. Before buying or paying, sending a message or email, deleting, changing settings,
+  or typing into a password field, Jarvis asks a spoken yes/no. Password fields are detected
+  by Windows UI Automation, not guessed; the Windows-key shortcuts, Ctrl+Alt+Del and
+  Ctrl+Shift+Esc are refused outright; Alt+F4, Ctrl+W and Delete ask first. Every action is
+  announced in one short line before it happens.
+- **Text on your screen is treated as content, not instructions.** If a page tells Jarvis
+  to "ignore your instructions" or do something, Jarvis doesn't, and tells you.
+- **Switching off is instant and complete:** the eye button, the tray item, Esc or the Stop
+  button, or saying "turn off screen vision" / "स्क्रीन विज़न बंद करो" (recognised on your
+  machine, no Claude call). It cancels any request in flight that carries a screenshot,
+  abandons an action sequence midway, and drops captured frames. From then on the backend
+  refuses every capture (there's a test that proves a capture attempt fails while off).
+- **Limits, honestly:** Jarvis acts on your real desktop, not in a sandbox (Anthropic
+  recommends a sandbox for computer use), so it acts only on explicit request, asks before
+  risky steps, and refuses system shortcuts. Recognising that a click will "send" or
+  "pay" relies on the model saying so, except for password fields and the blocked keys,
+  which are checked in code. Only the primary monitor is supported.
 
 ## Memory: what gets remembered, and your controls
 
@@ -200,7 +250,7 @@ added `websockets` and the HUD's npm packages.
 
 | Package | License | Network behaviour |
 | --- | --- | --- |
-| `anthropic` 1.15.0 | MIT | Calls the Anthropic API only (calls 1–4). It bundles OpenTelemetry tracing hooks, which export nothing without an OpenTelemetry SDK. Jarvis also disables tracing and trace-header propagation explicitly. |
+| `anthropic` 1.15.0 | MIT | Calls the Anthropic API only (calls 1–5). It bundles OpenTelemetry tracing hooks, which export nothing without an OpenTelemetry SDK. Jarvis also disables tracing and trace-header propagation explicitly. |
 | `opentelemetry-api` 1.45.1 (via anthropic) | Apache-2.0 | none on its own (no SDK or exporter installed) |
 | `httpx2`, `httpcore2`, `h11`, `anyio`, `sniffio`, `idna` (via anthropic) | BSD-3-Clause / MIT | HTTP client stack, used only for the Anthropic API |
 | `truststore` (via anthropic) | MIT | reads the Windows certificate store; no network of its own |
@@ -212,7 +262,9 @@ added `websockets` and the HUD's npm packages.
 | `websockets` 17.2 | BSD-3-Clause | a **server** bound to 127.0.0.1 for the HUD; makes no outbound connections |
 | `fpdf2` 2.9.0 (added 2026-11-18, for `create_pdf`) | **LGPL-3.0-only** | can fetch remote images when asked (`image()` with a URL, `write_html` `<img>`); Jarvis never calls either, it only places text. No other network code. |
 | `uharfbuzz` 0.57.0 (HarfBuzz text shaping for Devanagari) | Apache-2.0 (HarfBuzz: MIT) | none |
-| `fonttools` 4.68.0, `Pillow` 13.0.0 (via fpdf2) | MIT / MIT-CMU | none |
+| `fonttools` 4.68.0 (via fpdf2) | MIT | none |
+| `Pillow` 13.0.0 (fpdf2, and screen vision's screenshots) | MIT-CMU | none as used. `ImageGrab` reads the screen locally; images are encoded in memory and never saved |
+| `comtypes` 1.5.0 (added 2026-11-18, Windows only) | MIT | none. Talks to Windows' own UI Automation (COM) to tell whether the focused field is a password box. On first use it generates COM wrapper modules into its own package folder (`comtypes/gen`) |
 | `faster-whisper` 1.2.1 | MIT | none at runtime with a local model folder. Its `download_model` helper (Hugging Face Hub) is never called. |
 | `ctranslate2` (Whisper inference) | MIT | none |
 | `huggingface_hub`, `hf-xet`, `fsspec`, `filelock`, `tqdm`, `colorama`, `click`, `packaging` (via faster-whisper / onnxruntime) | Apache-2.0 / BSD / MIT | **network only if asked to download**. Jarvis never asks, and forces offline mode. |

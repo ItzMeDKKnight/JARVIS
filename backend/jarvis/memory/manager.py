@@ -27,7 +27,7 @@ import logging
 from pydantic import BaseModel
 
 from jarvis.config import MemoryConfig
-from jarvis.events import AssistantState, StateChanged, Transcript
+from jarvis.events import AssistantState, StateChanged, ToolStarted, Transcript
 from jarvis.memory.facts import content_words, rank
 from jarvis.memory.sensitive import drop_sensitive_sentences
 from jarvis.memory.store import AddResult, Fact, MemoryStore
@@ -42,6 +42,9 @@ from jarvis.memory.summary import (
 logger = logging.getLogger(__name__)
 
 _PAUSE_STATES = frozenset({AssistantState.IDLE, AssistantState.LISTENING})
+# A turn that looked at the screen is never remembered: neither the request nor the reply
+# (which may describe what was on the screen). Screenshots never reach memory at all.
+SCREEN_TOOLS = frozenset({"look_at_screen", "act_on_screen"})
 _SUMMARY_KEY = "summary"
 
 
@@ -67,6 +70,7 @@ class MemoryService:
         self._turn = 0
         self._injected: dict[object, int] = {}
         self._pending: list[TurnLine] = []
+        self._turn_start = 0  # where the current turn's lines begin in _pending
         self._task: asyncio.Task[None] | None = None
         # Bumped by every forget; results computed before it are discarded.
         self._generation = 0
@@ -184,6 +188,9 @@ class MemoryService:
     async def __call__(self, event: BaseModel) -> None:
         if isinstance(event, Transcript) and event.final:
             self._buffer(event)
+        elif isinstance(event, ToolStarted) and event.name in SCREEN_TOOLS:
+            del self._pending[self._turn_start :]
+            self._skip_rest_of_turn = True
         elif isinstance(event, StateChanged) and event.state in _PAUSE_STATES:
             self._skip_rest_of_turn = False
             self._maybe_consolidate(force=False)
@@ -191,6 +198,8 @@ class MemoryService:
     def _buffer(self, event: Transcript) -> None:
         if self._skip_rest_of_turn:
             return
+        if event.role == "user":
+            self._turn_start = len(self._pending)
         text = drop_sensitive_sentences(event.text)
         if not text:
             return

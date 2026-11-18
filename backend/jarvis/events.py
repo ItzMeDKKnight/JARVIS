@@ -164,7 +164,14 @@ class FileSaved(_Message):
     kind: Literal["pdf"]
 
 
-StopTarget = Literal["listening", "transcription", "reply", "speech", "tools"]
+StopTarget = Literal["listening", "transcription", "reply", "speech", "tools", "vision"]
+
+
+class VisionMode(_Message):
+    """Screen vision mode changed (or the HUD just connected). Off at every start."""
+
+    type: Literal["vision"] = "vision"
+    enabled: bool
 
 
 class Stopped(_Message):
@@ -190,7 +197,8 @@ BackendEvent = Annotated[
     | UsageUpdate
     | MemorySnapshot
     | Stopped
-    | FileSaved,
+    | FileSaved
+    | VisionMode,
     Field(discriminator="type"),
 ]
 
@@ -245,6 +253,13 @@ class MemoryDelete(_Message):
     ids: tuple[int, ...] = Field(min_length=1, max_length=500)
 
 
+class VisionSet(_Message):
+    """The HUD's screen vision button (or tray item): turn the mode on or off."""
+
+    type: Literal["vision_set"] = "vision_set"
+    enabled: bool
+
+
 class MemoryForgetAll(_Message):
     """The HUD asks for confirmation itself before sending this."""
 
@@ -261,7 +276,8 @@ ClientCommand = Annotated[
     | PttStop
     | MemoryList
     | MemoryDelete
-    | MemoryForgetAll,
+    | MemoryForgetAll
+    | VisionSet,
     Field(discriminator="type"),
 ]
 

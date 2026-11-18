@@ -114,3 +114,13 @@ test('the HUD opens only PDFs inside the project Outputs folders', async () => {
     assert.equal(resolveOutputFile(bad, repo), null, String(bad));
   }
 });
+
+test('the tray icon gets a red dot while screen vision is on', () => {
+  const size = 32;
+  const plain = reactorIconPixels(size);
+  const vision = reactorIconPixels(size, { vision: true });
+  const at = (pixels, x, y) => Array.from(pixels.subarray((y * size + x) * 4, (y * size + x) * 4 + 4));
+  const corner = [Math.round(size * 0.78), Math.round(size * 0.78)];
+  assert.deepEqual(at(vision, ...corner).slice(0, 3), [42, 42, 255]); // BGR red
+  assert.notDeepEqual(at(plain, ...corner), at(vision, ...corner));
+});

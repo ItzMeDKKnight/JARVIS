@@ -78,6 +78,7 @@ let mainWindow = null;
 let tray = null;
 let quitting = false;
 let hudMuted = false;
+let hudVision = false; // screen vision mode, as last reported by the HUD (off at start)
 let settings = loadSettings();
 const backend = new Backend({ repoRoot: REPO_ROOT, python: process.env.JARVIS_PYTHON, args: BACKEND_ARGS });
 
@@ -95,9 +96,9 @@ function saveSettings() {
   fs.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2));
 }
 
-function icon(muted = false) {
+function icon(muted = false, vision = false) {
   const size = 32;
-  return nativeImage.createFromBitmap(reactorIconPixels(size, { muted }), { width: size, height: size });
+  return nativeImage.createFromBitmap(reactorIconPixels(size, { muted, vision }), { width: size, height: size });
 }
 
 // -- content and network ------------------------------------------------------------------
@@ -208,19 +209,26 @@ function scheduleCapture() {
 
 // -- tray -----------------------------------------------------------------------------------
 
-function sendTrayCommand(type) {
-  mainWindow?.webContents.send('tray-command', { type });
+function sendTrayCommand(type, fields = {}) {
+  mainWindow?.webContents.send('tray-command', { type, fields });
 }
 
 function refreshTray() {
   if (!tray) return;
   const login = app.getLoginItemSettings(loginItemOptions());
-  tray.setImage(icon(hudMuted));
-  tray.setToolTip(hudMuted ? 'J.A.R.V.I.S. (muted)' : 'J.A.R.V.I.S.');
+  tray.setImage(icon(hudMuted, hudVision));
+  const tip = ['J.A.R.V.I.S.', hudVision ? 'SCREEN VISION ON' : null, hudMuted ? 'muted' : null];
+  tray.setToolTip(tip.filter(Boolean).join(' - '));
   tray.setContextMenu(
     Menu.buildFromTemplate([
       { label: 'Show J.A.R.V.I.S.', click: showWindow },
       { label: hudMuted ? 'Unmute microphone' : 'Mute microphone', click: () => sendTrayCommand('mute_toggle') },
+      {
+        label: hudVision ? '● Screen vision is ON (click to turn off)' : 'Screen vision (off)',
+        type: 'checkbox',
+        checked: hudVision,
+        click: (item) => sendTrayCommand('vision_set', { enabled: item.checked }),
+      },
       { label: 'Compact always-on-top', type: 'checkbox', checked: settings.compact, click: (item) => setCompact(item.checked) },
       {
         label: 'Start on login',
@@ -283,6 +291,12 @@ function registerIpc() {
   handle('window:compact', (compact) => setCompact(compact === true));
   handle('hud:status', (status) => {
     hudMuted = status?.muted === true;
+    const vision = status?.vision === true;
+    if (vision !== hudVision) {
+      hudVision = vision;
+      // Keep the HUD itself out of screenshots while the mode is on (WDA_EXCLUDEFROMCAPTURE).
+      mainWindow?.setContentProtection(hudVision);
+    }
     refreshTray();
   });
 }

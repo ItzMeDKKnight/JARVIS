@@ -25,6 +25,12 @@
 
       <main class="stage" id="stage">
         <canvas id="reactor" aria-label="Arc reactor showing what Jarvis is doing"></canvas>
+        <div class="vision-badge" id="vision-badge" hidden role="status" aria-live="assertive">
+          <span class="vision-dot"></span> Screen vision ON
+        </div>
+        <button type="button" class="vision-button" id="btn-vision" data-on="false" title="Screen vision: let Jarvis see your screen when you ask (off at every start)" aria-label="Screen vision" aria-pressed="false">
+          <span class="glyph eye"></span><span class="label">Vision</span>
+        </button>
         <button type="button" class="stop-button" id="btn-stop" data-active="false" title="Stop everything Jarvis is doing (Esc)" aria-label="Stop Jarvis">
           <span class="glyph stop"></span><span class="label">Stop</span>
         </button>

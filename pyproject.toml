@@ -29,6 +29,11 @@ dependencies = [
     # never fpdf2's remote-image loading. Pulls in fontTools (MIT) and Pillow (MIT-CMU).
     "fpdf2==2.9.0",
     "uharfbuzz==0.57.0",
+    # Screen vision mode: Pillow grabs and encodes screenshots in memory; comtypes (MIT,
+    # pure Python) asks Windows UI Automation whether the focused field is a password box.
+    # Neither makes network calls.
+    "pillow==13.0.0",
+    "comtypes==1.5.0; sys_platform == 'win32'",
 ]
 
 [project.optional-dependencies]

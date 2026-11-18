@@ -173,6 +173,29 @@ narration:
     en: "Saving that as a PDF."
     hi: "इसे पीडीएफ़ में सेव कर रहा हूँ।"
 
+  look_at_screen:
+    en: "Taking a look at your screen."
+    hi: "आपकी स्क्रीन देख रहा हूँ।"
+  act_on_screen:
+    en: "On it."
+    hi: "अभी करता हूँ।"
+  # Said before each on-screen action (screen vision mode).
+  screen_click:
+    en: "Clicking."
+    hi: "क्लिक कर रहा हूँ।"
+  screen_move:
+    en: "Moving the pointer."
+    hi: "पॉइंटर हटा रहा हूँ।"
+  screen_scroll:
+    en: "Scrolling {target}."
+    hi: "स्क्रोल कर रहा हूँ।"
+  screen_type:
+    en: "Typing it in."
+    hi: "टाइप कर रहा हूँ।"
+  screen_key:
+    en: "Pressing {target}."
+    hi: "{target} दबा रहा हूँ।"
+
 # Fixed lines for failures, so the user always hears something sensible.
 messages:
   api_unreachable:
@@ -211,6 +234,21 @@ messages:
   budget_exhausted:
     en: "I've reached this session's {cap} dollar spending limit, {user_name}. Restart me to reset it."
     hi: "{user_name_hi}, इस सत्र की {cap} डॉलर की ख़र्च सीमा पूरी हो गई है। रीसेट के लिए मुझे दोबारा शुरू करें।"
+  confirm_screen_vision_on:
+    en: "Turn on screen vision? While it's on, a screenshot goes to Claude each time you ask about your screen."
+    hi: "स्क्रीन विज़न चालू करूँ? चालू रहने पर, जब भी आप स्क्रीन के बारे में पूछेंगे, एक स्क्रीनशॉट Claude को जाएगा।"
+  screen_vision_on:
+    en: "Screen vision is on, {user_name}."
+    hi: "{user_name_hi}, स्क्रीन विज़न चालू है।"
+  screen_vision_off:
+    en: "Screen vision is off."
+    hi: "स्क्रीन विज़न बंद है।"
+  screen_vision_is_off:
+    en: "Screen vision is off. Turn it on with the eye button, or say turn on screen vision."
+    hi: "स्क्रीन विज़न बंद है। आँख वाले बटन से या 'स्क्रीन विज़न चालू करो' कहकर चालू करें।"
+  confirm_screen_action:
+    en: "Before I continue: this will {category}: {target}. Shall I go ahead?"
+    hi: "आगे बढ़ने से पहले: इससे {category} होगा: {target}। क्या करूँ?"
   voice_unavailable:
     en: "My voice systems didn't start, {user_name}. You can still type to me."
     hi: "{user_name_hi}, मेरी आवाज़ शुरू नहीं हो पाई। आप टाइप करके बात कर सकते हैं।"
@@ -222,6 +260,47 @@ logging:
   # When false (default), logs record timings, token counts and tool names,
   # but never what you said or what Jarvis answered.
   log_transcripts: false
+
+# ---------------------------------------------------------------------------
+# Screen vision mode. OFF at every start, never saved; you switch it on yourself (eye button,
+# or "turn on screen vision", which asks first). While it's on, and only when you ask about
+# your screen, a screenshot goes to Claude. See PRIVACY.md.
+# ---------------------------------------------------------------------------
+vision:
+  # Sonnet is better at reading screens and at clicking the right spot than Haiku.
+  model: claude-sonnet-5-5
+  effort: low
+  thinking: adaptive
+  max_tokens: 2048               # per step
+  timeout_s: 60                  # per request
+  max_steps_look: 3              # look: a screenshot plus up to two zooms
+  max_steps_act: 12              # act: each click / scroll / key press is a step
+  max_long_edge_px: 1366         # screenshots are scaled to fit; the docs advise <= 1920x1080
+  jpeg_quality: 80               # ~200 KB per screenshot instead of ~1 MB as PNG
+  tokens_per_megapixel: 1400     # budget estimate per screenshot (a 1366x768 shot ~1.5k tokens)
+  toolset_tokens: 4800           # the computer-use toolset definition, per request
+  settle_ms: 350                 # let the screen update after an action
+  max_type_chars: 2000
+  risk_labels:
+    purchase: {en: "buy or pay for something", hi: "कुछ ख़रीदना या भुगतान"}
+    send_message: {en: "send a message", hi: "संदेश भेजना"}
+    delete: {en: "delete or close something", hi: "कुछ मिटाना या बंद करना"}
+    change_settings: {en: "change a setting", hi: "कोई सेटिंग बदलना"}
+    password_field: {en: "type into a password field", hi: "पासवर्ड वाले बॉक्स में टाइप करना"}
+  off_phrases:
+    - turn off screen vision
+    - stop screen vision
+    - screen vision off
+    - disable screen vision
+    - stop looking at my screen
+    - stop watching my screen
+    - screen vision band karo
+    - screen vision band
+    - स्क्रीन विज़न बंद करो
+    - स्क्रीन विजन बंद करो
+    - स्क्रीन विज़न बंद
+    - स्क्रीन देखना बंद करो
+    - मेरी स्क्रीन देखना बंद करो
 
 # ---------------------------------------------------------------------------
 # Long-term memory (Phase 4). A local SQLite file in paths.data_dir.

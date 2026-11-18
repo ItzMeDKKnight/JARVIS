@@ -775,3 +775,112 @@ body.compact .stop-button {
   color: var(--accent);
   border-color: var(--line-strong);
 }
+
+/* Screen vision: a toggle next to Stop, and an unmistakable red badge while it is on. */
+.vision-button {
+  position: absolute;
+  left: calc(50% - 176px);
+  bottom: 18px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  font-family: var(--mono-font);
+  font-size: 12px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  background: rgba(4, 14, 26, 0.7);
+  border-color: var(--line-strong);
+  z-index: 2;
+}
+
+.vision-button[data-on='true'] {
+  color: #fff;
+  border-color: var(--danger);
+  background: rgba(255, 42, 42, 0.35);
+}
+
+.glyph.eye {
+  width: 14px;
+  height: 9px;
+  border: 1.5px solid currentColor;
+  border-radius: 50% / 60%;
+}
+
+.glyph.eye::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 4px;
+  height: 4px;
+  margin: -2px 0 0 -2px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.vision-badge {
+  position: absolute;
+  left: 16px;
+  top: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 12px;
+  font-family: var(--mono-font);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #fff;
+  background: rgba(255, 42, 42, 0.85);
+  border: 1px solid #ff8080;
+  border-radius: 3px;
+  z-index: 3;
+  box-shadow: 0 0 18px rgba(255, 42, 42, 0.6);
+}
+
+.vision-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #fff;
+  animation: vision-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes vision-pulse {
+  50% {
+    opacity: 0.25;
+  }
+}
+
+/* A red frame round the whole window while the screen is visible to Jarvis. */
+body.vision-on .app {
+  box-shadow: inset 0 0 0 3px rgba(255, 42, 42, 0.9);
+}
+
+body.compact .vision-button {
+  left: 8px;
+  bottom: auto;
+  top: 8px;
+  padding: 4px 8px;
+}
+
+body.compact .vision-button .label {
+  display: none;
+}
+
+body.compact .vision-badge {
+  left: 50%;
+  top: auto;
+  bottom: 40px;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vision-dot {
+    animation: none;
+  }
+}

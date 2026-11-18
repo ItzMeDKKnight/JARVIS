@@ -137,6 +137,7 @@ Things to try:
 | `open youtube.com` | opens the site in your default browser (http/https only) |
 | `open GitHub` / `Gmail kholo` / `जीमेल खोलो` | opens a site by name, from the `websites:` list in `config/apps.yaml` |
 | `play Believer on YouTube` / `YouTube pe Kesariya chalao` / `यूट्यूब पर भजन चलाओ` | finds the video and opens it in your browser, where it starts playing |
+| `turn on screen vision`, then `what's on my screen?` / `play the video that's open` | screen vision mode (off at start; asks first; screenshots go to Claude only while it's on) |
 | `make a PDF about the solar system` / `put that in a PDF` | writes a formatted PDF (title, headings, paragraphs, lists; Hindi works) and tells you its name and folder |
 | `write a python function for binary search` | a short spoken-style explanation, full code in a code block |
 | `remember that my sister is called Meera` | stored in long-term memory; survives restarts |
@@ -179,6 +180,19 @@ PDF may give jumbled characters (a limit of how PDF stores shaped Indic text); t
 itself is correct. While Claude writes a long document there is a pause of several seconds
 before "Saving that as a PDF.", and the layout step adds a few seconds more (about 7 s for a
 two-page document).
+
+**Screen vision mode.** Off at every start. Switch it on with the **eye button** (next to
+Stop), the tray menu, or by saying "turn on screen vision" / "स्क्रीन विज़न चालू करो" (it asks
+you to confirm). While it's on, a red badge and frame show it, and the tray icon gets a red
+dot. Then ask about your screen ("what's on my screen?", "read this error") or ask for an
+action ("play the YouTube video that's open", "scroll down", "click Accept"). Jarvis takes a
+screenshot only when you ask, says each action before doing it, and asks a spoken yes before
+paying, sending, deleting, changing settings or typing into a password field. Text on the
+screen is never treated as instructions. Switch off with the eye button, Esc, Stop, or by
+saying "turn off screen vision" / "स्क्रीन विज़न बंद करो" (instant, no Claude call).
+**With the mode on, screenshots of your screen go to the Claude API** (see
+[PRIVACY.md](PRIVACY.md#screen-vision-mode)); about 1 to 5 cents per request (Sonnet 5.5,
+`vision:` in `config.yaml`), counted toward the $5 cap. Primary monitor only.
 
 **Memory.** Besides explicit "remember that ...", Jarvis keeps a short rolling summary of
 your conversations and picks out lasting facts (your projects, people you mention,

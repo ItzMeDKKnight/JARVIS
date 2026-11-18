@@ -12,7 +12,7 @@ flowchart LR
         STT --> VS[VoiceSession]
         VS --> A[Assistant<br/>conversation loop]
         A <--> LLM[LLM client]
-        A --> REG[Tool registry] --> TOOLS[open_app · open_url · play_youtube · web_search<br/>show_code · create_pdf · remember · recall · forget]
+        A --> REG[Tool registry] --> TOOLS[open_app · open_url · play_youtube · web_search<br/>show_code · create_pdf · look/act_on_screen · set_screen_vision<br/>remember · recall · forget]
         A --> TTS[Kokoro / Piper TTS]
         A <--> MEM[MemoryService<br/>SQLite]
         A --> COST[CostTracker<br/>$5 cap]
@@ -283,3 +283,20 @@ are disposed on every rebuild and on `dispose()`.
 | HUD backend crashes | Electron restarts it with backoff; HUD shows "Backend offline. Reconnecting…" |
 | Backend config problem (e.g. no API key) | HUD banner with the exact message; not retried |
 | Microphone / models unavailable in serve mode | typed input keeps working; banner "Voice is unavailable" |
+
+## Screen vision mode
+
+`jarvis/vision/gate.py` holds the one switch (`ScreenGate`, off at every start, never saved) and
+`ScreenAccess`, the only path to the screen: every capture and input call checks the gate on
+the event loop and again in the worker thread right before the OS call. Switching off bumps a
+generation counter (work queued earlier refuses to run) and cancels tasks inside
+`gate.session()`. `jarvis/vision/agent.py` runs each request as its own short Claude
+conversation with the `computer_toolset_20260801` toolset (look: screenshot + zoom only; act: a
+small member set), executes the calls itself with code-level rules (blocked / confirm-first key
+combinations, UI Automation password-field check, `confirm_risky_action` tool), budget-checks
+every request (toolset + screenshot tokens counted), caps the steps, and clears its message list
+(the frames) when it ends. Only the text answer returns to the main conversation, wrapped as
+untrusted; `MemoryService` drops any turn that used a screen tool. Windows capture and input
+(`ImageGrab` to in-memory JPEG, `SendInput`, comtypes UI Automation) live in
+`os_adapters/windows_screen.py`; the HUD excludes itself from captures with
+`setContentProtection` while the mode is on.

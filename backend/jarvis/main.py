@@ -45,6 +45,8 @@ from jarvis.terminal import TerminalConfirmer, TerminalRenderer, run_repl
 from jarvis.tools.registry import build_default_registry
 from jarvis.utils.console import use_utf8_console
 from jarvis.utils.logging import register_secret, setup_logging
+from jarvis.vision.agent import ScreenAgent
+from jarvis.vision.gate import ScreenAccess, ScreenGate
 
 logger = logging.getLogger(__name__)
 
@@ -126,6 +128,27 @@ async def _memory_service(
             store.close()
 
 
+def _screen_vision(
+    config: JarvisConfig, client: anthropic.AsyncAnthropic, bus: EventBus, cost: CostTracker
+) -> tuple[ScreenAgent, ScreenGate] | None:
+    """Screen vision tools (Windows only). The mode itself starts OFF, always."""
+    if sys.platform != "win32":
+        return None
+    from jarvis.os_adapters.windows_screen import WindowsScreen
+
+    gate = ScreenGate(bus)
+    screen = WindowsScreen(jpeg_quality=config.vision.jpeg_quality)
+    agent = ScreenAgent(
+        client,
+        config.vision,
+        ScreenAccess(gate, screen, screen),
+        user_name=config.assistant.user_name,
+        cost=cost,
+        risk_labels=config.vision.risk_labels,
+    )
+    return agent, gate
+
+
 async def _amain(
     config: JarvisConfig, api_key: str, args: argparse.Namespace, hud_token: str | None
 ) -> None:
@@ -139,6 +162,7 @@ async def _amain(
     try:
         async with _memory_service(config, sdk_client, bus, cost) as memory:
             search = AnthropicWebSearch(sdk_client, config.search, cost)
+            screen = _screen_vision(config, sdk_client, bus, cost)
             registry = build_default_registry(
                 config,
                 launcher=default_launcher(),
@@ -152,6 +176,7 @@ async def _amain(
                     if config.pdf.designer.enabled
                     else None
                 ),
+                screen=screen,
             )
             llm = AnthropicLLMClient(sdk_client)
             if hud_token is not None:
