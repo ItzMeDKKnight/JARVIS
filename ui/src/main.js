@@ -13,6 +13,7 @@ import { Hologram } from './hologram/core.js';
 import { ERROR_HOLD_MS, visualState } from './hologram/states.js';
 import { CodePanel } from './panels/code-panel.js';
 import { MemoryPanel } from './panels/memory-panel.js';
+import { PersonalityPicker } from './panels/personality.js';
 import { SourcesPanel } from './panels/sources.js';
 import { StatusBar } from './panels/status-bar.js';
 import { TranscriptPanel } from './panels/transcript.js';
@@ -153,6 +154,9 @@ const handlers = {
       if (!(await bridge.openFile(filePath))) transcript.addSystem('Could not open that file.', 'error');
     });
   },
+  personality(event) {
+    personaPicker.apply(event);
+  },
   vision(event) {
     const changed = view.vision !== event.enabled;
     view.vision = event.enabled;
@@ -206,6 +210,11 @@ function send(type, fields) {
   if (!sent) transcript.addSystem('Not connected to Jarvis yet.', 'error');
   return sent;
 }
+
+// Personality: the status-bar button opens the picker; the backend saves and reports back.
+const personaPicker = new PersonalityPicker($('btn-persona'), $('persona-panel'), (fields) =>
+  send('personality_set', fields),
+);
 
 // One stop path for the Stop button and Esc.
 const stopControl = new StopControl($('btn-stop'), { send: () => send('interrupt') });

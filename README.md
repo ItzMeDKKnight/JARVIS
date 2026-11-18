@@ -101,7 +101,7 @@ Optional: install the Piper fallback voice engine (GPL-3.0) with
 .venv\Scripts\python -m jarvis                 # text mode; /quit to leave
 .venv\Scripts\python -m jarvis --once "open vs code"
 .venv\Scripts\python -m jarvis --export-memory memory.json   # everything Jarvis remembers, as JSON
-.venv\Scripts\python scripts\wipe_data.py                    # delete memory, logs, debug audio, HUD data
+.venv\Scripts\python scripts\wipe_data.py                    # delete memory, settings, logs, debug audio, HUD data
 .venv\Scripts\python scripts\check_caching.py                # prove prompt caching works (live API)
 ```
 
@@ -137,6 +137,7 @@ Things to try:
 | `open youtube.com` | opens the site in your default browser (http/https only) |
 | `open GitHub` / `Gmail kholo` / `जीमेल खोलो` | opens a site by name, from the `websites:` list in `config/apps.yaml` |
 | `play Believer on YouTube` / `YouTube pe Kesariya chalao` / `यूट्यूब पर भजन चलाओ` | finds the video and opens it in your browser, where it starts playing |
+| `be evil at 80 percent` / `थोड़ा मज़ेदार बनो` / `normal ho jao` | switches personality (also the status-bar button) |
 | `turn on screen vision`, then `what's on my screen?` / `play the video that's open` | screen vision mode (off at start; asks first; screenshots go to Claude only while it's on) |
 | `make a PDF about the solar system` / `put that in a PDF` | writes a formatted PDF (title, headings, paragraphs, lists; Hindi works) and tells you its name and folder |
 | `write a python function for binary search` | a short spoken-style explanation, full code in a code block |
@@ -194,6 +195,19 @@ saying "turn off screen vision" / "स्क्रीन विज़न बं�
 [PRIVACY.md](PRIVACY.md#screen-vision-mode)); about 1 to 5 cents per request (Sonnet 5.5,
 `vision:` in `config.yaml`), counted toward the $5 cap. Primary monitor only.
 
+**Personalities.** Normal (the calm, dry Jarvis), Witty, Evil, Joyful and Lusty, each but
+Normal with an intensity from 0 to 100%: at 0 a faint flavour, at 100 the most exaggerated
+version (relentless roasting, full supervillain monologue, over-the-top joy, shameless
+innuendo; Lusty stays suggestive, never explicit). Pick one with the personality button in
+the status bar (modes plus a slider), or by voice: "be witty", "evil mode at 80 percent",
+"थोड़ा मज़ेदार बनो", "normal ho jao". It works in English, Hindi and Hinglish, applies from
+the next reply, is saved in `%LOCALAPPDATA%\Jarvis\settings.json` and restored on restart.
+A personality changes **only how Jarvis talks**: tools, the app allowlist, confirmations, the
+spending cap, memory rules and the accuracy of answers are identical in every mode (Evil
+Jarvis gloats about opening Calculator, then opens Calculator and nothing else). Edit the
+modes in `config/persona.md`; the always-on core comes first, then one section per mode
+with four intensity bands.
+
 **Memory.** Besides explicit "remember that ...", Jarvis keeps a short rolling summary of
 your conversations and picks out lasting facts (your projects, people you mention,
 preferences). That runs as a small background Claude call every few requests, when the
@@ -218,7 +232,9 @@ Everything lives in `%LOCALAPPDATA%\Jarvis\memory.db`; see [PRIVACY.md](PRIVACY.
 - Latency: `tts.phrase_cache_size` (narration lines replayed from memory), `audio.output_latency` (`low` = replies start ~100 ms sooner; set `high` if
   playback ever crackles) and `vad.end_silence_ms` (how long a pause ends your sentence;
   lower is snappier but may cut you off mid-sentence).
-- `config/persona.md`: Jarvis's personality and rules. Edit freely.
+- `config/persona.md`: Jarvis's core rules and character, then the personality modes
+  (`<!-- personality: ... -->` sections with `<!-- band: 0-25 -->` etc.). Only the active
+  mode's band is sent, after the cached core. Edit freely; startup checks the structure.
 - `ui/src/hologram/states.js`: the lens HUD's look: the blue / orange / red `PALETTES`, the
   `LAYERS` list (every ring, arc, tick dial and outer element with its radius, depth, speed
   and tilt), `THEME` (core glow, particles, bloom, camera drift, 400 ms cross-fade, compact

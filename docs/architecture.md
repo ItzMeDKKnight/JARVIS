@@ -12,7 +12,7 @@ flowchart LR
         STT --> VS[VoiceSession]
         VS --> A[Assistant<br/>conversation loop]
         A <--> LLM[LLM client]
-        A --> REG[Tool registry] --> TOOLS[open_app · open_url · play_youtube · web_search<br/>show_code · create_pdf · look/act_on_screen · set_screen_vision<br/>remember · recall · forget]
+        A --> REG[Tool registry] --> TOOLS[open_app · open_url · play_youtube · web_search<br/>show_code · create_pdf · look/act_on_screen · set_screen_vision<br/>set_personality · remember · recall · forget]
         A --> TTS[Kokoro / Piper TTS]
         A <--> MEM[MemoryService<br/>SQLite]
         A --> COST[CostTracker<br/>$5 cap]
@@ -300,3 +300,15 @@ untrusted; `MemoryService` drops any turn that used a screen tool. Windows captu
 (`ImageGrab` to in-memory JPEG, `SendInput`, comtypes UI Automation) live in
 `os_adapters/windows_screen.py`; the HUD excludes itself from captures with
 `setContentProtection` while the mode is on.
+
+## Personalities
+
+`config/persona.md` = a core (identity, language and speech rules, every safety, confirmation
+and memory rule, and "personality changes only how you talk") followed by marked sections
+per mode and intensity band. `jarvis/personality.py` splits it (strictly, at startup), picks
+the band, and keeps the current choice in `PersonalityState` (saved atomically to
+`<data_dir>/settings.json`). Requests carry two system blocks, each with a cache breakpoint:
+the core (cached with the tools, byte-identical in every mode) and the small personality
+block, read fresh for every request, so a change applies from the next reply and costs at
+most one cache miss (`scripts/check_caching.py` shows it). The `set_personality` tool and the
+HUD's `personality_set` command change it; a `personality` event reports it.

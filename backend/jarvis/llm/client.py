@@ -90,9 +90,7 @@ def build_request_params(
     params: dict[str, Any] = {
         "model": route.model,
         "max_tokens": route.max_tokens,
-        "system": [
-            {"type": "text", "text": request.system, "cache_control": {"type": "ephemeral"}}
-        ],
+        "system": _system_blocks(request),
         "tools": request.tools,
         "messages": messages,
         "thinking": {"type": route.thinking},
@@ -103,6 +101,20 @@ def build_request_params(
         params["fallbacks"] = route.fallbacks
         params["betas"] = [FALLBACK_BETA]
     return params
+
+
+def _system_blocks(request: LLMRequest) -> list[dict[str, Any]]:
+    """Core first (cached with the tools, the same in every mode), then the personality.
+
+    Each block has its own breakpoint, so switching personality misses only from the
+    second block on: the tools and the core are still read from the cache.
+    """
+    blocks = [{"type": "text", "text": request.system, "cache_control": {"type": "ephemeral"}}]
+    if request.persona:
+        blocks.append(
+            {"type": "text", "text": request.persona, "cache_control": {"type": "ephemeral"}}
+        )
+    return blocks
 
 
 def _map_api_error(exc: anthropic.APIError) -> LLMError:

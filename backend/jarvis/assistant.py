@@ -286,6 +286,7 @@ class Assistant:
                 system=self._system_prompt,
                 tools=self._tool_definitions,
                 messages=self._history.messages,
+                persona=self._persona_block(),
             )
             if not self._affordable(request):
                 cap = _dollars(self._cost.cap_usd or 0.0)
@@ -315,6 +316,11 @@ class Assistant:
             "tool round limit reached", extra={"limit": self._config.llm.max_tool_rounds}
         )
         await self._speak_line(self._config.messages.internal_error.for_language(self._language))
+
+    def _persona_block(self) -> str:
+        """The active personality, read fresh for every request (so a change applies next)."""
+        personality = self._registry.personality
+        return personality.prompt() if personality is not None else ""
 
     async def _add_context_note(self, text: str) -> None:
         """Attach the date/time and relevant memories. Memory trouble never blocks a reply."""

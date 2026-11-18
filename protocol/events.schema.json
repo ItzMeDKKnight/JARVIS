@@ -249,6 +249,47 @@
         "title": "MemorySnapshot",
         "type": "object"
       },
+      "PersonalityEvent": {
+        "additionalProperties": false,
+        "description": "The active personality (on connect and after every change). Intensity 0-100.",
+        "properties": {
+          "v": {
+            "const": 2,
+            "default": 2,
+            "title": "V",
+            "type": "integer"
+          },
+          "type": {
+            "const": "personality",
+            "default": "personality",
+            "title": "Type",
+            "type": "string"
+          },
+          "mode": {
+            "enum": [
+              "normal",
+              "witty",
+              "evil",
+              "joyful",
+              "lusty"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "intensity": {
+            "maximum": 100,
+            "minimum": 0,
+            "title": "Intensity",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "mode",
+          "intensity"
+        ],
+        "title": "PersonalityEvent",
+        "type": "object"
+      },
       "SourceItem": {
         "additionalProperties": false,
         "properties": {
@@ -627,6 +668,7 @@
         "error": "#/$defs/ErrorEvent",
         "file_saved": "#/$defs/FileSaved",
         "memory": "#/$defs/MemorySnapshot",
+        "personality": "#/$defs/PersonalityEvent",
         "sources": "#/$defs/Sources",
         "state_changed": "#/$defs/StateChanged",
         "status": "#/$defs/Status",
@@ -681,6 +723,9 @@
       },
       {
         "$ref": "#/$defs/VisionMode"
+      },
+      {
+        "$ref": "#/$defs/PersonalityEvent"
       }
     ]
   },
@@ -824,6 +869,47 @@
         "title": "MuteToggle",
         "type": "object"
       },
+      "PersonalitySet": {
+        "additionalProperties": false,
+        "description": "The HUD's personality picker: a mode and an intensity (ignored for normal).",
+        "properties": {
+          "v": {
+            "const": 2,
+            "default": 2,
+            "title": "V",
+            "type": "integer"
+          },
+          "type": {
+            "const": "personality_set",
+            "default": "personality_set",
+            "title": "Type",
+            "type": "string"
+          },
+          "mode": {
+            "enum": [
+              "normal",
+              "witty",
+              "evil",
+              "joyful",
+              "lusty"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "intensity": {
+            "maximum": 100,
+            "minimum": 0,
+            "title": "Intensity",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "mode",
+          "intensity"
+        ],
+        "title": "PersonalitySet",
+        "type": "object"
+      },
       "PttStart": {
         "additionalProperties": false,
         "description": "HUD push-to-talk (Space held): start recording.",
@@ -946,6 +1032,7 @@
         "memory_forget_all": "#/$defs/MemoryForgetAll",
         "memory_list": "#/$defs/MemoryList",
         "mute_toggle": "#/$defs/MuteToggle",
+        "personality_set": "#/$defs/PersonalitySet",
         "ptt_start": "#/$defs/PttStart",
         "ptt_stop": "#/$defs/PttStop",
         "shutdown": "#/$defs/Shutdown",
@@ -987,6 +1074,9 @@
       },
       {
         "$ref": "#/$defs/VisionSet"
+      },
+      {
+        "$ref": "#/$defs/PersonalitySet"
       }
     ]
   }

@@ -41,6 +41,7 @@ class FakeLLMClient:
                 system=request.system,
                 tools=request.tools,
                 messages=list(request.messages),
+                persona=request.persona,
             )
         )
         turn = self._turns.pop(0)

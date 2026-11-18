@@ -27,12 +27,15 @@ CONFIRM_WORD = "wipe"
 _DB_SIDE_FILES = ("-journal", "-wal", "-shm")
 # "hud" holds the HUD window settings and Chromium cache (ui/electron/main.js).
 _DIRS = ("logs", "debug-audio", "hud")
+# Your saved choices (the personality), written by jarvis.personality.
+_FILES = ("settings.json",)
 
 
 def wipe_targets(data_dir: Path, db_file: str) -> list[Path]:
     """The files and folders Jarvis creates, in the order they are deleted (existing ones only)."""
     db = data_dir / db_file
     candidates = [db, *(db.with_name(db.name + suffix) for suffix in _DB_SIDE_FILES)]
+    candidates += [data_dir / name for name in _FILES]
     candidates += [data_dir / name for name in _DIRS]
     return [path for path in candidates if path.exists()]
 

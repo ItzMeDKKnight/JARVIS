@@ -35,6 +35,8 @@ class LLMRequest:
     system: str
     tools: list[dict[str, Any]]
     messages: list[Any]
+    # Second system block after the cached core: the active personality (may be empty).
+    persona: str = ""
 
 
 @dataclass(frozen=True)

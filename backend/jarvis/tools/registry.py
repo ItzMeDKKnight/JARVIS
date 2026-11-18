@@ -24,6 +24,7 @@ from jarvis.documents.designer import Designer
 from jarvis.events import ToolFinished, ToolStarted
 from jarvis.memory.manager import MemoryService
 from jarvis.os_adapters.base import AppLauncher, BrowserOpener
+from jarvis.personality import PersonalityState
 from jarvis.search.base import SearchProvider, VideoFinder
 from jarvis.tools.app_catalog import AppCatalog
 from jarvis.tools.base import Tool, ToolContext, ToolInput, ToolOutcome
@@ -31,6 +32,7 @@ from jarvis.tools.memory_tools import ForgetMemoryTool, RecallMemoryTool, Rememb
 from jarvis.tools.open_app import OpenAppTool
 from jarvis.tools.open_url import OpenUrlTool
 from jarvis.tools.pdf_tool import CreatePdfTool, PdfWriter
+from jarvis.tools.personality_tool import SetPersonalityTool
 from jarvis.tools.play_youtube import PlayYouTubeTool
 from jarvis.tools.screen_tools import ActOnScreenTool, LookAtScreenTool, SetScreenVisionTool
 from jarvis.tools.show_code import ShowCodeTool
@@ -54,6 +56,8 @@ class ToolRegistry:
         # Set when screen vision tools are registered; the assistant and the HUD switch the
         # mode through it (it is the one backend switch, see jarvis.vision.gate).
         self.screen_gate: ScreenGate | None = None
+        # The active personality, read by the assistant before every request.
+        self.personality: PersonalityState | None = None
 
     def register(self, tool: Tool[Any]) -> None:
         if tool.name in self._tools:
@@ -161,6 +165,7 @@ def build_default_registry(
     pdf: PdfWriter | None = None,
     designer: Designer | None = None,
     screen: tuple[ScreenAgent, ScreenGate] | None = None,
+    personality: PersonalityState | None = None,
 ) -> ToolRegistry:
     """Register the built-in tools (memory tools only when memory is enabled).
 
@@ -217,6 +222,9 @@ def build_default_registry(
             )
         )
         registry.screen_gate = gate
+    if personality is not None:
+        registry.register(SetPersonalityTool(personality, timeout_s=tools_cfg.timeout_s))
+        registry.personality = personality
     if memory is not None:
         registry.register(RememberTool(memory, timeout_s=tools_cfg.timeout_s))
         registry.register(RecallMemoryTool(memory, timeout_s=tools_cfg.timeout_s))

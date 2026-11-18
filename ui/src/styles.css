@@ -884,3 +884,100 @@ body.compact .vision-badge {
     animation: none;
   }
 }
+
+/* Personality: a status-bar button and its picker. */
+.persona-button {
+  padding: 1px 10px;
+  font-family: var(--mono-font);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--accent);
+  border-color: var(--line-strong);
+}
+
+.persona-button[data-mode='witty'] { color: #c9a2ff; }
+.persona-button[data-mode='evil'] { color: var(--danger); }
+.persona-button[data-mode='joyful'] { color: #ffd35c; }
+.persona-button[data-mode='lusty'] { color: #ff6fae; }
+
+.persona-panel {
+  position: fixed;
+  left: 16px;
+  bottom: 40px;
+  width: 300px;
+  padding: 14px 16px;
+  background: var(--panel-strong);
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+  z-index: 20;
+  font-family: var(--ui-font);
+}
+
+.persona-title {
+  font-family: var(--mono-font);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 8px;
+}
+
+.persona-modes {
+  display: grid;
+  gap: 4px;
+}
+
+.persona-mode {
+  display: grid;
+  grid-template-columns: 18px 64px 1fr;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.persona-mode:hover {
+  background: var(--accent-soft);
+}
+
+.persona-mode .name {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.persona-mode .hint {
+  color: var(--text-dim);
+  font-size: 12px;
+}
+
+.persona-slider {
+  display: grid;
+  grid-template-columns: auto 1fr 42px;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  color: var(--text-dim);
+  font-size: 12px;
+}
+
+.persona-slider input[type='range'] {
+  accent-color: var(--accent-warm);
+}
+
+.persona-slider input:disabled {
+  opacity: 0.35;
+}
+
+.persona-value {
+  font-family: var(--mono-font);
+  color: var(--text);
+  text-align: right;
+}
+
+.persona-note {
+  margin: 10px 0 0;
+  font-size: 11px;
+  color: var(--text-dim);
+}

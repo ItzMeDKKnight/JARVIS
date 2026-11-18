@@ -43,6 +43,7 @@ from jarvis.events import (
     MemoryList,
     MemorySnapshot,
     MuteToggle,
+    PersonalitySet,
     PttStart,
     PttStop,
     Shutdown,
@@ -55,6 +56,7 @@ from jarvis.events import (
 )
 from jarvis.llm.types import LLMClient
 from jarvis.memory.manager import MemoryService
+from jarvis.personality import PersonalityState
 from jarvis.server import HudServer
 from jarvis.state import StateMachine
 from jarvis.tools.registry import ToolRegistry
@@ -93,9 +95,11 @@ class Hud:
         memory: MemoryService | None,
         control: SessionControl,
         screen_gate: ScreenGate | None = None,
+        personality: PersonalityState | None = None,
     ) -> None:
         self._config = config
         self._screen_gate = screen_gate
+        self._personality = personality
         self._bus = bus
         self._state = state
         self._memory = memory
@@ -113,6 +117,8 @@ class Hud:
         events: list[BaseModel] = [StateChanged(state=self._state.state), self.control.status()]
         if self._screen_gate is not None:
             events.append(self._screen_gate.event())
+        if self._personality is not None:
+            events.append(self._personality.event())
         if self._last_usage is not None:
             events.append(self._last_usage)
         events.append(await self.memory_snapshot())
@@ -153,6 +159,8 @@ class Hud:
             await self._memory_command(command)
         elif isinstance(command, VisionSet):
             await self._vision_set(command.enabled)
+        elif isinstance(command, PersonalitySet) and self._personality is not None:
+            await self._personality.set(command.mode, command.intensity)
 
     async def _vision_set(self, enabled: bool) -> None:
         """The eye button / tray item. Pressing the button is itself the consent to turn on."""
@@ -241,6 +249,7 @@ async def run_hud(
         memory=memory,
         control=text_session,
         screen_gate=registry.screen_gate,
+        personality=registry.personality,
     )
     server = HudServer(
         config.server, token=token, bus=bus, on_command=hud.handle, snapshot=hud.snapshot

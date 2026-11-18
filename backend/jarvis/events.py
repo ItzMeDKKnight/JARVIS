@@ -167,6 +167,17 @@ class FileSaved(_Message):
 StopTarget = Literal["listening", "transcription", "reply", "speech", "tools", "vision"]
 
 
+PersonalityMode = Literal["normal", "witty", "evil", "joyful", "lusty"]
+
+
+class PersonalityEvent(_Message):
+    """The active personality (on connect and after every change). Intensity 0-100."""
+
+    type: Literal["personality"] = "personality"
+    mode: PersonalityMode
+    intensity: int = Field(ge=0, le=100)
+
+
 class VisionMode(_Message):
     """Screen vision mode changed (or the HUD just connected). Off at every start."""
 
@@ -198,7 +209,8 @@ BackendEvent = Annotated[
     | MemorySnapshot
     | Stopped
     | FileSaved
-    | VisionMode,
+    | VisionMode
+    | PersonalityEvent,
     Field(discriminator="type"),
 ]
 
@@ -260,6 +272,14 @@ class VisionSet(_Message):
     enabled: bool
 
 
+class PersonalitySet(_Message):
+    """The HUD's personality picker: a mode and an intensity (ignored for normal)."""
+
+    type: Literal["personality_set"] = "personality_set"
+    mode: PersonalityMode
+    intensity: int = Field(ge=0, le=100)
+
+
 class MemoryForgetAll(_Message):
     """The HUD asks for confirmation itself before sending this."""
 
@@ -277,7 +297,8 @@ ClientCommand = Annotated[
     | MemoryList
     | MemoryDelete
     | MemoryForgetAll
-    | VisionSet,
+    | VisionSet
+    | PersonalitySet,
     Field(discriminator="type"),
 ]
 

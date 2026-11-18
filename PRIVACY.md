@@ -77,6 +77,7 @@ Everything is under `%LOCALAPPDATA%\Jarvis` (or `paths.data_dir`). Jarvis refuse
 | **Memory database** | `%LOCALAPPDATA%\Jarvis\memory.db` (SQLite) | facts about you (one short sentence each, with English/Hindi keywords, a category, whether you asked for it or it was extracted, and timestamps) and one rolling summary of past conversations (up to `memory.max_summary_chars`, default 1,500 characters) |
 | Logs (rotating, 5 × 1 MB by default) | `%LOCALAPPDATA%\Jarvis\logs\` | timings, token counts, cache hits, estimated cost, model used, tool names and success, how many facts were recalled or saved. **No conversation text and no fact text** unless `logging.log_transcripts: true`. API keys are masked. |
 | Debug recordings (only if `audio.debug_save_audio: true`) | `%LOCALAPPDATA%\Jarvis\debug-audio\` | WAV files of what you said |
+| Your settings | `%LOCALAPPDATA%\Jarvis\settings.json` | the chosen personality mode and intensity |
 | HUD data | `%LOCALAPPDATA%\Jarvis\hud\` | window settings and Chromium cache; no conversation text |
 | API key | `.env` in the repo folder (git-ignored), or an environment variable | your key |
 | Speech models | `models\` in the repo folder (git-ignored) | Whisper, Kokoro, Piper and wake-word model files; no personal data |

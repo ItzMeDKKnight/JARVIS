@@ -34,10 +34,12 @@ from jarvis.documents.pdf_writer import FpdfWriter
 from jarvis.events import EventBus
 from jarvis.hud_app import HudTokenError, read_token, run_hud
 from jarvis.llm.client import AnthropicLLMClient, create_async_client
+from jarvis.llm.prompts import persona_sections
 from jarvis.memory.manager import MemoryService
 from jarvis.memory.store import MemoryStore, MemoryStoreError
 from jarvis.memory.summary import AnthropicConsolidator
 from jarvis.os_adapters.base import DefaultBrowserOpener, default_launcher, user_data_dir
+from jarvis.personality import PersonalitySettings, PersonalityState
 from jarvis.privacy import apply_offline_env
 from jarvis.search.anthropic_search import AnthropicWebSearch
 from jarvis.state import StateMachine
@@ -49,6 +51,8 @@ from jarvis.vision.agent import ScreenAgent
 from jarvis.vision.gate import ScreenAccess, ScreenGate
 
 logger = logging.getLogger(__name__)
+# Your saved choices (the personality), next to memory.db in the data folder.
+PERSONALITY_SETTINGS_FILE = "settings.json"
 
 
 def _parse_args(argv: list[str] | None) -> argparse.Namespace:
@@ -163,6 +167,13 @@ async def _amain(
         async with _memory_service(config, sdk_client, bus, cost) as memory:
             search = AnthropicWebSearch(sdk_client, config.search, cost)
             screen = _screen_vision(config, sdk_client, bus, cost)
+            personality = PersonalityState(
+                persona_sections(config),
+                settings=PersonalitySettings(
+                    user_data_dir(config.paths.data_dir) / PERSONALITY_SETTINGS_FILE
+                ),
+                bus=bus,
+            )
             registry = build_default_registry(
                 config,
                 launcher=default_launcher(),
@@ -177,6 +188,7 @@ async def _amain(
                     else None
                 ),
                 screen=screen,
+                personality=personality,
             )
             llm = AnthropicLLMClient(sdk_client)
             if hud_token is not None:

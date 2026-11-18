@@ -25,6 +25,7 @@ WebSocket (see [Transport](#transport)).
 | `usage` | `model`, `route`, `session_cost_usd`, `cap_usd` | after every conversation call (status bar) |
 | `memory` | `enabled`, `facts`: `[{id, text, category, source, created_at}]`, `summary` | on connect, on `memory_list`, after HUD deletions |
 | `file_saved` | `path`, `name`, `folder`, `kind`: `pdf` | a file Jarvis saved for you; the HUD shows it with an Open button (it opens only `.pdf` files inside the project's Outputs folders) |
+| `personality` | `mode`: `normal` \| `witty` \| `evil` \| `joyful` \| `lusty`, `intensity` 0-100 | on connect and after every change (voice or HUD); shown in the status bar |
 | `vision` | `enabled` | screen vision mode changed, and on connect. Off at every start; the HUD shows a red badge, frame and tray dot while it's on |
 | `stopped` | `cancelled`: list of `listening` \| `transcription` \| `reply` \| `speech` \| `tools` \| `vision` | after every `interrupt`; empty when Jarvis was already idle |
 
@@ -39,6 +40,7 @@ WebSocket (see [Transport](#transport)).
 | `ptt_start` / `ptt_stop` | none | HUD push-to-talk (Space held); same 300 ms hold rule as the keyboard |
 | `memory_list` | none | asks for a `memory` event |
 | `memory_delete` | `ids` (1–500 ints) | forgets those facts (same guarantees as a spoken "forget") |
+| `personality_set` | `mode`, `intensity` (0-100) | the personality picker; saved by the backend, applies from the next reply |
 | `vision_set` | `enabled` | the eye button / tray item: turn screen vision on or off (the button press is the consent; voice asks first) |
 | `memory_forget_all` | none | erases all facts and the summary (the HUD confirms first) |
 | `shutdown` | none | clean exit (saves the last memory summary and the cost log) |

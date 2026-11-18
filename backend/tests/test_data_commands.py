@@ -48,10 +48,11 @@ def test_wipe_deletes_only_jarvis_files(local_config: JarvisConfig) -> None:
     (data_dir / "logs" / "jarvis.log").write_text("x", encoding="utf-8")
     (data_dir / "debug-audio").mkdir()
     (data_dir / "hud").mkdir()
+    (data_dir / "settings.json").write_text("{}", encoding="utf-8")
     (data_dir / "unrelated.txt").write_text("keep me", encoding="utf-8")
 
     targets = wipe_data.wipe_targets(data_dir, local_config.memory.db_file)
-    assert {p.name for p in targets} == {"memory.db", "logs", "debug-audio", "hud"}
+    assert {p.name for p in targets} == {"memory.db", "settings.json", "logs", "debug-audio", "hud"}
     assert wipe_data.wipe(targets) == []
     assert not wipe_data.remove_if_empty(data_dir)  # unrelated file keeps the folder
     assert sorted(p.name for p in data_dir.iterdir()) == ["unrelated.txt"]
